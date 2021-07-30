@@ -1,0 +1,817 @@
+---
+title: "Retail transactions:  Monthly Report"
+author: "Chloé Blanchard: Uni (chb2132)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r seed}
+
+set.seed(41)
+```
+
+```{r libraries}
+
+library(data.table)
+library(dplyr)
+library(DT)
+```
+
+```{r constants}
+
+###--------------------------------------------------------------------------###
+# set working directory to show your local directory location path
+###--------------------------------------------------------------------------###
+setwd("~/Documents/code/5902/IP1")
+
+###--------------------------------------------------------------------------###
+# current_trans_data <- Mon_trans_data
+###--------------------------------------------------------------------------###
+current_trans_data <- "transactions -- January 2020.csv"
+
+###--------------------------------------------------------------------------###
+# current_view_data <- Mon_views_data
+###--------------------------------------------------------------------------###
+current_view_data <- "views -- January 2020.csv"
+
+###--------------------------------------------------------------------------###
+# "YEAR" <- YYYY
+###--------------------------------------------------------------------------###
+year <- "2020";
+
+###--------------------------------------------------------------------------###
+# "MONTH" <- Month
+###--------------------------------------------------------------------------###
+month <- "January";
+
+###--------------------------------------------------------------------------###
+# w1 <- YYYY-MM-09
+###--------------------------------------------------------------------------###
+w1 <- 2020-01-09;
+
+customer_data <- if (file.exists("customers.csv")){
+            "customers.csv"
+} else{
+            return('Please ensure you have the customers dataset saved to your 
+                   working directory as "customers.csv", thanks.')
+}
+
+product_data <- if (file.exists("products.csv")){
+            "products.csv"
+} else{
+            return('Please ensure you have the products dataset saved to your 
+                    working directory as "products.csv", thanks.')
+}
+
+viewing_data <- if (file.exists(current_view_data)){
+        current_view_data
+} else{
+        return('Please ensure you have the MONTH YEAR views dataset saved to 
+                your working directory as "views -- MONTH YEAR", thanks.')
+}
+
+transaction_data <- if (file.exists(current_trans_data)){
+            current_trans_data
+} else{
+            return('Please ensure you have the MONTH YEAR transactions dataset
+            saved to your working directory as "transactions -- 
+            MONTH YEAR.csv", thanks.')
+}
+
+```
+
+```{r functions}
+
+view_counter <- function(DT = DT){
+  
+  x <- 1;
+  cu_views <- as.data.table(unique(DT$customer_id));
+  
+  view_len <- length(cu_views);
+  customer_views <- data.table(a = c(2, view_len), 
+                    b = c("customer_id", "count"));
+  
+  for(x in view_len){
+    cu_val <- cu_views$V1[x];
+    customer_views$customer_id <- cu_val;
+    customer_views$count <- nrow(DT$customer_id == cu_val)
+    
+    }
+  
+  return (customer_views);
+ 
+}
+
+round_numerics <- function(x, digits){
+###--------------------------------------------------------------------------###
+# Function written by Dave Shilane
+###--------------------------------------------------------------------------###
+  if (is.numeric(x)) {
+    x <- round(x = x, digits = digits)
+    }
+  return(x)
+}
+
+mean_missing <- function(x){
+###--------------------------------------------------------------------------###
+# Function written by Dave Shilane
+###--------------------------------------------------------------------------###
+  return(mean(is.na(x)))
+}
+
+show_coef <- function(mod_lm){
+###--------------------------------------------------------------------------###
+# Function written by Dave Shilane
+###--------------------------------------------------------------------------###
+  return(data.frame(Variable = names(mod_lm$coefficients),
+  Coefficient = mod_lm$coefficients, p = summary(mod_lm)$coef[,
+    ncol(summary(mod_lm)$coef)]))
+}
+
+```
+
+```{r load_data}
+customers <- fread(customer_data)
+products <- fread(product_data)
+
+###--------------------------------------------------------------------------###
+# Be sure to update the constants in the top of the document to reflect the
+# current-most month abbreviation, as well as the name of the current data files
+###--------------------------------------------------------------------------###
+views <- fread(viewing_data)
+trans <- fread(transaction_data)
+```
+
+```{r explore_data, eval = FALSE}
+dim(customers)
+str(customers)
+summary(customers)
+head(customers)
+tail(customers)
+
+dim(products)
+str(products)
+summary(products)
+head(products)
+tail(products)
+
+dim(views)
+str(views)
+summary(views)
+head(views)
+tail(views)
+
+dim(trans)
+str(trans)
+summary(trans)
+head(trans)
+tail(trans)
+
+```
+
+
+```{r clean_data}
+
+sum(is.na(customers))
+charNA_customers <- which(customers == "NA")
+print(charNA_customers)
+
+sum(is.na(products))
+charNA_products <- which(products == "NA")
+print(charNA_products)
+
+sum(is.na(views))
+charNA_views <- which(views == "NA")
+str
+print(charNA_views)
+
+sum(is.na(trans))
+charNA_trans <- which(trans[,1:4] == "NA")
+
+str(trans)
+print(charNA_trans)
+
+missingNo_customers <- customers[ , lapply(X = .SD, FUN = "mean_missing")]
+missingNo_products <- products[ , lapply(X = .SD, FUN = "mean_missing")]
+
+missingNo_views <- views[ , lapply(X = .SD, FUN = "mean_missing")]
+missingNo_trans <- trans[ , lapply(X = .SD, FUN = "mean_missing")]
+
+colnames(customers)
+
+colnames(products)
+products <- products[ , c(2, 1, 3)]
+
+colnames(views)
+views <- views[ , c(3, 1, 2)]
+
+colnames(trans)
+trans <- trans[ , c(5, 1, 2, 3, 4)]
+
+```
+
+
+
+## Part 1:  Summary {.tabset}
+
+This part of the report will be directed to your internal team at the consulting
+company.  It is intended to document the sources of information that were used 
+in the project.  It will also describe the data in less technical terms to team 
+members who are not data scientists.  If another member of the team joins the 
+project later, they will rely on your descriptions to gain familiarity with the 
+data.  To that end, we recommend providing some instructions that will help 
+other consultants use the information more effectively.
+
+### Customers
+
+The customers dataset provides information on existing customers that have made
+purchases with the store at some point in time. The customer dataset contains 
+columns for customer identifier, age, gender--with 2 options: M/F, 
+annual income, and region--with 4 options: Midwest/Northeast/South/West. 
+
+```{r customers}
+colnames(customers)
+levels(customers$region)
+summary(customers$region)
+levels(customers$gender)
+summary(customers$gender)
+summary(customers)
+str(customers)
+missingNo_customers
+head(customers, 3)
+```
+
+
+### Products
+
+The products dataset provides information on store-sold products that have been
+put up for sale by the store at some point in time. The products dataset 
+contains columns for product identifier, category--with 5 options: 
+coat/hat/pants/shirt/shoes, and price.
+
+```{r products}
+colnames(products)
+levels(products$category)
+summary(products$category)
+summary(products)
+str(products)
+missingNo_products
+head(products, 3)
+```
+
+
+### views
+
+The views datasets (for which we currently have data for month January and
+February) cover monthly view information for particular customers. The datasets
+include viewing details on time, customer identifier, and product identifier.
+
+```{r views}
+colnames(views)
+summary(views)
+str(views)
+missingNo_views
+head(views, 3)
+```
+
+
+### transactions
+
+The transactions datasets (for which we currently have data for the currentmost
+month), which cover monthly transaction information. The datasets include 
+purchase details for each transaction, including time, customer identifier, 
+product identifier, price, and quantity.
+
+```{r transactions}
+colnames(trans)
+summary(trans)
+str(trans)
+missingNo_trans
+head(trans, 3)
+```
+
+
+## Part 2:  Specific Questions {.tabset}
+
+This part of the report will be directed to product managers throughout the 
+client's company.  The idea is to give them the useful information they need to 
+act on the specific questions they posed.  Plan your communication accordingly.
+
+### Q1
+
+#### Question
+
+During the first week of the month, what were the 10 most viewed products?  Show
+the results in a table with the product's identifier, category, and count of the
+number of views.
+
+#### Answer
+
+```{r part2_q1}
+
+views.w1 <- views[as.Date(views$time) < w1]
+
+views.w1_category <- merge.data.table(views.w1, products, by = "product_id")
+views.w1_category[, c("customer_id", "price") := NULL]
+
+###--------------------------------------------------------------------------###
+# Checking the possible factor levels (char string here) we will need to address
+###--------------------------------------------------------------------------###
+levels(as.factor(products$category))
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month Week 1 For Coat Category, Filtering for Coat Cat.
+###--------------------------------------------------------------------------###
+views.w1.coat <- views.w1_category[views.w1_category$category == 
+                                     "coat", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.w1.coat, cols = "N", order = -1)
+views.w1_top10.coat <- views.w1.coat[1:10]
+
+print(month)
+print("Week 1: Top 10 Coat views")
+print.data.frame(views.w1_top10.coat)
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month Week 1 For Hat Category, Filtering For Hat Cat.
+###--------------------------------------------------------------------------###
+views.w1.hat <- views.w1_category[views.w1_category$category == 
+                                    "hat", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.w1.hat, cols = "N", order = -1)
+views.w1_top10.hat <- views.w1.hat[1:10]
+
+print(month)
+print("Week 1: Top 10 Hat views")
+print.data.frame(views.w1_top10.hat)
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month Week 1 For Pants Category, Filtering For Pants Cat
+###--------------------------------------------------------------------------###
+views.w1.pants <- views.w1_category[views.w1_category$category == 
+                                      "pants", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.w1.pants, cols = "N", order = -1)
+views.w1_top10.pants <- views.w1.pants[1:10]
+
+print(month)
+print("Week 1: Top 10 Pants views")
+print.data.frame(views.w1_top10.pants)
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month Week 1 For Shirt Category, Filtering For Shirt Cat
+###--------------------------------------------------------------------------###
+views.w1.shirt <- views.w1_category[views.w1_category$category == 
+                                      "shirt", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.w1.shirt, cols = "N", order = -1)
+views.w1_top10.shirt <- views.w1.shirt[1:10]
+
+print(month)
+print("Week 1: Top 10 Shirt views")
+print.data.frame(views.w1_top10.shirt)
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month Week 1 For Shoes Category, Filtering For Shoes Cat
+###--------------------------------------------------------------------------###
+views.w1.shoes <- views.w1_category[views.w1_category$category 
+                                    == "shoes", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.w1.shoes, cols = "N", order = -1)
+views.w1_top10.shoes <- views.w1.shoes[1:10]
+
+print(month)
+print("Week 1: Top 10 Shoes views")
+print.data.frame(views.w1_top10.shoes)
+
+```
+
+### Q2
+
+#### Question
+
+During the whole month, what were the 10 most viewed products for each category?
+Show the results in separate tables by category.  Including only the product's 
+identifier and the count of the number of views.
+
+
+#### Answer {.tabset}
+
+```{r part2_q2_overall_calculations}
+
+###--------------------------------------------------------------------------###
+# Data table manipulation to merge DT/DFs, create/remove columns based on values
+###--------------------------------------------------------------------------###
+views.category <- merge.data.table(views, products, by = "product_id")
+views.category[, c("customer_id", "price") := NULL]
+
+```
+
+##### Shirt
+
+```{r part2_q2_shirt}
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month For Shirt Category
+###--------------------------------------------------------------------------###
+views.shirt <- views.category[views.category$category 
+                              == "shirt", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.shirt, cols = "N", order = -1)
+views.top10.shirt <- views.shirt[1:10]
+
+print(month)
+print("Top 10 Shirt views")
+print.data.frame(views.top10.shirt)
+
+```
+
+##### Pants
+
+```{r part2_q2_pants}
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month For Pants Category
+###--------------------------------------------------------------------------###
+views.pants <- views.category[views.category$category ==
+                                "pants", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.pants, cols = "N", order = -1)
+views.top10.pants <- views.pants[1:10]
+
+print(month)
+print("Top 10 Pants views")
+print.data.frame(views.top10.pants)
+
+```
+
+##### Coat
+
+```{r part2_q2_coat}
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month For Coat Category
+###--------------------------------------------------------------------------###
+views.coat <- views.category[views.category$category == 
+                               "coat", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.coat, cols = "N", order = -1)
+views.top10.coat <- views.coat[1:10]
+
+print(month)
+print("Top 10 Coat views")
+print.data.frame(views.top10.coat)
+
+```
+
+##### Shoes
+
+```{r part2_q2_shoes}
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month For Shoes Category
+###--------------------------------------------------------------------------###
+views.shoes <- views.category[views.category$category 
+                              == "shoes", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.shoes, cols = "N", order = -1)
+views.top10.shoes <- views.shoes[1:10]
+
+print(month)
+print("Top 10 Shoes views")
+print.data.frame(views.top10.shoes)
+
+```
+
+##### Hat
+
+```{r part2_q2_hat}
+
+###--------------------------------------------------------------------------###
+# Top 10 views for Each Month For Hat Category
+###--------------------------------------------------------------------------###
+views.hat <- views.category[views.category$category
+                            == "hat", .N, keyby = product_id]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = views.hat, cols = "N", order = -1)
+views.top10.hat <- views.hat[1:10]
+
+print(month)
+print("Top 10 Hat views")
+print.data.frame(views.top10.hat)
+
+```
+
+
+### Q3
+
+#### Question
+
+What was the total revenue for each category of product during the month?  Show 
+the results in a single table sorted in decreasing order.
+
+#### Answer
+
+```{r part2_q3}
+
+###--------------------------------------------------------------------------###
+# Data table manipulation to merge DT/DFs, create/remove columns based on values
+###--------------------------------------------------------------------------###
+trans.category <- merge.data.table(trans, products, by = "product_id")
+trans.category[, total := price.x * quantity]
+trans.category[, c("time", "customer_id", "quantity", 
+                       "price.x", "price.y") := NULL]
+
+revs <- trans.category[,lapply(.SD, sum, na.rm = TRUE), 
+                       by = "category", .SDcols = c("total")]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = revs, cols = "total", order = -1)
+
+print(month)
+print("Revenue Per Category")
+print.data.frame(revs)
+
+```
+
+### Q4
+
+#### Question
+
+Among customers with at least one transaction, show the average, median, and 
+standard deviation of the customers' monthly spending on the site.
+
+#### Answer
+
+```{r part2_q4}
+
+###--------------------------------------------------------------------------###
+# Data table manipulation to merge DT/DFs, create/remove columns based on values
+###--------------------------------------------------------------------------###
+customer_trans <- merge.data.table(customers, trans, 
+                                        by = "customer_id")
+
+customer_trans[, total := price * quantity]
+customer_trans[, c("age", "gender", "income", "region", "time", "price", 
+                        "quantity", "product_id") := NULL]
+
+customer_totals <- customer_trans[, `:=`(average = mean(total), 
+                       median = median(total), standard_deviation = sd(total)),
+                       by = customer_id]
+
+summary(customer_totals)
+summary(customer_totals$total)
+
+```
+
+### Q5
+
+#### Question
+
+What is the percentage distribution of spending by gender?  Show the amount of 
+revenue and the percentage.
+
+#### Answer
+
+```{r part2_q5}
+
+###--------------------------------------------------------------------------###
+# Data table manipulation to merge DT/DFs, create/remove columns based on values
+###--------------------------------------------------------------------------###
+totals <- trans[, total := price * quantity]
+totals <- totals[, c("time", "product_id", "price", "quantity") := NULL]
+
+total_gen <- merge.data.table(totals, customers, by = "customer_id")                     
+total_gen <- total_gen[, c("age", "income", "region") := NULL]
+
+gen_totals <- gen_totals[, c("customer_id") := NULL]
+
+overall_revenue <- sum(gen_totals$total)
+
+gen_totals <- gen_totals[,lapply(.SD, sum, na.rm = TRUE), 
+                         by = "gender", .SDcols = c("total")]
+
+gen_totals <- gen_totals[, `:=`(overall_revenue = overall_revenue, 
+                      percentage = (sum(total)/overall_revenue)), by = gender]
+
+print.data.frame(gen_totals)
+
+```
+
+### Q6
+
+#### Question
+
+Using linear regression, what is the effect of an extra ten thousand dollars of 
+income on monthly spending for a customer while adjusting for age, gender, and 
+region?
+
+#### Answer
+
+```{r part2_q6}
+
+###--------------------------------------------------------------------------###
+# Data table manipulation to merge DT/DFs, create/remove columns based on values
+###--------------------------------------------------------------------------###
+customer_trans <- merge.data.table(customers, trans, by = "customer_id")
+
+customer_trans <- customer_trans[ , `:=`(inflated_income = income + 10000), 
+                                  by = "customer_id"]
+
+
+###--------------------------------------------------------------------------###
+# Equation for lm regression calculation, utilizing Prof. Shilane's coeff. f(x)
+###--------------------------------------------------------------------------###
+customer_trans[, show.coef(mod.lm = lm(formula = total ~ age + gender + region 
+              + inflated_income, data = customer_trans)), by = "customer_id"]
+
+```
+
+
+### Q7
+
+#### Question
+
+Among customers who viewed at least 1 product, how many had at least one 
+purchase during the month?  Show the total number and as a percentage of the 
+users with a view.
+
+#### Answer
+
+```{r part2_q7}
+
+###--------------------------------------------------------------------------###
+# Pulling unique customer_id values to compare with one another for calculations
+###--------------------------------------------------------------------------###
+unique_tran <- unique(trans$customer_id)
+unique_view <- unique(views$customer_id)
+
+vt_cust <- which(unique_tran %in% unique_view)
+vt_cust <- unique_tran[vt_cust]
+
+length(vt_cust)
+length(vt_cust)/length(unique_view)
+
+```
+
+### Q8
+
+#### Question
+
+Now let's look at the viewing habits in different age groups, including 18-34, 
+35-49, 50-64, and 65+.  Within each group, what were the mean, median, and 
+standard deviation for the number of unique products viewed per customer?
+
+#### Answer
+
+```{r part2_q8}
+
+cust_views <- merge.data.table(views, customers, by = "customer_id")
+cust_views <- cust_views[, 
+                  c("time", "gender", "income", "region") := NULL]
+
+cust_views <- cust_views[, .(num_items = length(unique(product_id))), 
+                  by = c("customer_id", "age")]
+
+age1_views <- cust_views[age < 35]
+summary(age1_views$num_items)
+sd(age1_views$num_items)
+
+age2_views <- cust_views[(age > 34 & age < 50)]
+summary(age2_views$num_items)
+sd(age2_views$num_items)
+
+age3_views <- cust_views[(age > 49 & age < 65)]
+summary(age3_views$num_items)
+sd(age3_views$num_items)
+
+age4_views <- cust_views[age > 64]
+summary(age4_views$num_items)
+sd(age4_views$num_items)
+
+```
+
+
+### Q9 
+
+#### Question
+
+What is the correlation between a user's total page views and total spending?  
+For customers without a transaction, include their spending as zero.
+
+#### Answer
+
+```{r part2_q9}
+
+###--------------------------------------------------------------------------###
+# Data table manipulation to merge DT/DFs, create/remove columns based on values
+###--------------------------------------------------------------------------###
+customer_id <- unique(views$customer_id);
+
+i <- 1;
+j <- 1;
+k <- length(cust_views);
+cust_count <- c(length = j);
+
+while(i < (k+1)){
+    cust_count[j] <- sum(views[customer_id == customer_id[j], which = TRUE])
+    i = i + 1
+    j = j + 1
+}
+
+cust_count <- round_numerics(cust_count, 1)
+cust_view_cts <- data.table(customer_id, cust_count)
+
+spend_totals <- trans[, .(spend_total = sum(total)), by = "customer_id"]
+total_Ds <- merge.data.table(cust_view_cts, spend_totals, by = "customer_id")
+total_Ds$cust_count <- round_numerics(total_Ds$cust_count, 1)
+
+zSpend <- !(cust_view_cts$customer %in% total_Ds$customer_id)
+total_Zs <- cust_view_cts[zSpend]
+
+total_Zs$cust_count <- round_numerics(total_Zs$cust_count, 1)
+total_Zs[,`:=`(spend_total = 0),]
+
+list_tals <- list(total_Ds, total_Zs)
+cust_tals <- rbindlist(list_tals, use.names = TRUE, fill = FALSE)
+
+summary(cust_tals)
+cor(cust_tals$cust_count, cust_tals$spend_total)
+
+```
+
+### Q10
+
+#### Question
+
+Which customer purchased the largest number of coats?  In the event of a tie, 
+include all of the users who reached this value.  Show their identifiers and 
+total volume.
+
+#### Answer
+
+```{r part2_q10}
+
+###--------------------------------------------------------------------------###
+# Data table manipulation to merge DT/DFs, create/remove columns based on values
+###--------------------------------------------------------------------------###
+coats <- products[products$category == "coat"]
+coats <- coats[ , c("price") := NULL]
+
+trans <- fread(current_trans_data)
+trans <- trans[ , c("price", "time") := NULL]
+
+coat_trans <- merge.data.table(coats, trans, keyby = "product_id")
+coat_trans[ , c("product_id", "category") := NULL]
+coat_totes <- coat_trans[, `:=`(total = quantity, customer = customer_id), 
+                         by = eval(unique("customer_id"))]
+coat_totes <- coat_totes[,c("total", "customer") := NULL]
+
+###--------------------------------------------------------------------------###
+# Re-ordering the entries so they're in "correct" order of Most Viewed To Least
+###--------------------------------------------------------------------------###
+setorderv(x = coat_totes, cols = "quantity", order = -1)
+head(coat_totes, 10)
+
+print("MONTH")
+print("Top Coat Sales")
+print.data.frame(coat_totes)
+
+```
+
