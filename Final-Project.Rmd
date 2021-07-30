@@ -1,0 +1,507 @@
+---
+title: 'Group9 Static Plot Show'
+author: 'Group9'
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+```{r seed, include=FALSE}
+set.seed(1105)
+```
+
+```{r libraries, include=FALSE}
+# install.packages(c("shiny", "ggplot2", "dplyr", "prophet", 'loo', "forecast", "DT", "lubridate", "zoo", "shinythemes"))
+
+library(shiny)
+library(ggplot2)
+library(dplyr)
+library(prophet)
+library(forecast)
+library(DT)
+library(lubridate)
+library(zoo)
+library(loo)
+
+```
+
+```{r load_data, include=FALSE}
+DJI <- read.csv("../data/DJI.csv")
+SP500 <- read.csv("../data/SP500.csv")
+VIX <- read.csv("../data/VIX.csv")
+data <- read.csv("../data/yield curve.csv", na.strings = "N/A")
+
+```
+
+```{r clean_data, include=FALSE}
+colnames(data)[1] <- c("Date")
+
+data$Date <- as.Date(data$Date, "%m/%d/%y")
+
+colnames(data)[c(4,6,11,13)] <- c("3 Mo","1 Yr","10 Yr","30 Yr")
+
+yield <- data[,c(4,6,11,13)]
+
+colnames(yield) <- c("3 Mo","1 Yr","10 Yr","30 Yr")
+
+choices2 <- colnames(yield)
+
+dates <- as.Date(DJI$Date)
+
+preds <-  seq(tail(dates,1) + days(1), tail(dates,1) + days(700), 1)
+
+Sys.setlocale("LC_TIME","C")
+
+weekdays <- weekdays.Date(preds) 
+
+preds2 <- preds[!weekdays %in% c("Saturday","Sunday")]
+
+wholedates <- c(dates, preds2[1:365])
+
+ind <- index(ts(1:length(wholedates ), frequency = 30))
+
+dates <- as.Date(data$Date)
+
+preds <-  seq(tail(dates,1) + days(1), tail(dates,1) + days(700), 1)
+
+weekdays <- weekdays.Date(preds) 
+
+preds2 <- preds[!weekdays %in% c("Saturday","Sunday")]
+
+
+wholedates2 <- c(dates, preds2[1:365])
+
+ind2 <- index(ts(1:length(wholedates2), frequency = 90))
+
+
+m1 <-   auto.arima(data$`3 Mo`, max.p = 5, max.d = 1, max.q = 5, seasonal = F)
+m2 <-   auto.arima(data$`1 Yr`, max.p = 5, max.d = 1, max.q = 5, seasonal = F)
+m3 <-   auto.arima(data$`10 Yr`, max.p = 5, max.d = 1, max.q = 5, seasonal = F)
+m4 <-   auto.arima(data$`30 Yr`, max.p = 5, max.d = 1, max.q = 5, seasonal = F)
+f1 <- forecast(m1, 365)
+f2 <- forecast(m2, 365)
+f3 <- forecast(m3, 365)
+f4 <- forecast(m4, 365)
+f <- data.frame(f1$mean,f2$mean,f3$mean,f4$mean)
+f[f < 0] <- 0
+f <- data.frame(Date =  wholedates2[(nrow(data)+1):(nrow(data)+365)], f)
+colnames(f)[-1] <- c("3 Mo","1 Yr","10 Yr","30 Yr")
+
+day.end.mo <- seq(as.Date("2020-12-01"),length=17,by="months") - 1
+
+ff2 <- f[f$Date %in% day.end.mo,]
+
+row.names(ff2) <- 1:nrow(ff2)
+
+
+choices3 <- ff2$Date
+
+
+m1 <-  HoltWinters(ts(data$`3 Mo`[!is.na(data$`3 Mo`)],frequency = 90))
+m2 <-   HoltWinters(ts(data$`1 Yr`[!is.na(data$`1 Yr`)],frequency = 90))
+m3 <-   HoltWinters(ts(data$`10 Yr`[!is.na(data$`10 Yr`)],frequency = 90))
+m4 <-   HoltWinters(ts(data$`30 Yr`[!is.na(data$`30 Yr`)],frequency = 90))
+f1 <- forecast(m1, 365)
+f2 <- forecast(m2, 365)
+f3 <- forecast(m3, 365)
+f4 <- forecast(m4, 365)
+f <- data.frame(f1$mean,f2$mean,f3$mean,f4$mean)
+f[f < 0] <- 0
+f <- data.frame(Date =  wholedates2[(nrow(data)+1):(nrow(data)+365)], f)
+colnames(f)[-1] <- c("3 Mo","1 Yr","10 Yr","30 Yr")
+ff3 <- f[f$Date %in% day.end.mo,]
+
+row.names(ff3) <- 1:nrow(ff3)
+
+m1 <-  ets(ts(data$`3 Mo`[!is.na(data$`3 Mo`)],frequency = 90))
+m2 <-   ets(ts(data$`1 Yr`[!is.na(data$`1 Yr`)],frequency = 90))
+m3 <-   ets(ts(data$`10 Yr`[!is.na(data$`10 Yr`)],frequency = 90))
+m4 <-   ets(ts(data$`30 Yr`[!is.na(data$`30 Yr`)],frequency = 90))
+f1 <- forecast(m1, 365)
+f2 <- forecast(m2, 365)
+f3 <- forecast(m3, 365)
+f4 <- forecast(m4, 365)
+f <- data.frame(f1$mean,f2$mean,f3$mean,f4$mean)
+f[f < 0] <- 0
+f <- data.frame(Date =  wholedates2[(nrow(data)+1):(nrow(data)+365)], f)
+colnames(f)[-1] <- c("3 Mo","1 Yr","10 Yr","30 Yr")
+ff4 <- f[f$Date %in% day.end.mo,]
+
+row.names(ff4) <- 1:nrow(ff4)
+
+```
+
+# 1 Project Overview {.tabset}
+
+# 1.1 Our Team 
+
+```{r Team_photo, echo=FALSE}
+knitr::include_graphics('../teamphoto/Team member.jpeg')
+```
+
+## 1.2	Business Problem & Opportunity {.tabset}
+
+The business problem we anticipate to address is one of the most prevalent  issues of the 21st century: unexpected economic downturns. These events are seemingly random; however, they seem to happen once every 8-12 years like clockwork (Panetta et al., 2009). The inability to predict exactly when they will hit, however, presents a serious issue for the U.S. federal government and in particular the Federal Reserve and the Department of Treasury. For instance, the sudden drop in revenues and the increase in outlays around the time of the Great Recession created unprecedented deficits for the postwar period. While, for the period of 2008-13, the deficit averaged 6.8 percent, after averaging 1.8 percent during the seven years prior (Panetta et al., 2009). This does not only affect the economic health of the nation in the following years after a recession, but also their ability to cope with it when it hits. After the 2008 recession, in particular, the U.S. faced an illiquidity in their financial instruments, making it difficult to use macroeconomic policy to battle the downturn of the economy (Krześniak, 2009).
+Our goal is to enable the prediction of such events for the U.S. Department of Treasury and the Federal Reserve 365 days in the future, so they have a fiscal year to prepare for the capital needs. In terms of short-term value, this project is particularly relevant for the year to come, given the present state of the economy, due to the COVID-19 pandemic. Giving financial institutions insight, into the state of the economy a year in the future, would be invaluable to them. In addition to its immediate value, there is another significant benefit to this project, as it enhances understanding of the United States economy and the correlation between its different components (i.e. the equities market with federal debt instruments). 
+
+## 1.3	Project Strategy {.tabset}
+
+According to our firms extensive experience in consulting and data solutions, we deemed best to use an interactive dashboard to provide insight into the future state of the economy. In particular, our product will be a user-friendly application, featuring key financial indicators, as deemed most appropriate. This application will provide its users great flexibility, as they will have the opportunity to get a wide variety of different  information, at any time, according to their needs. Our dashboard will not stop at reporting and visualizing current up-to-date financial data, but also offer predictions on their state up to 1 year into the future. This is made possible by looking at the historical trend, their seasonality and cyclicality patterns.
+ 
+
+# 2.	Data | Treasury Yield Curves & Closing Prices for S&P 500, DJIA, & VIX Index {.tabset}
+
+## 2.1.	Data Sources and Set Selection {.tabset}
+
+For the purposes of investigating the financial market and its conditions in the U.S. we plan to analyze and project the values of the U.S. Treasury yield curves, as well as various stock market indices; such as, the S&P 500, the Dow Jones Industrial Index (DJI), and the Cboe Volatility Index (VIX).
+
+### Yield Curve {.tabset}
+
+The U.S. Treasury yields have long been used as an indicator of economic downturn (Cooper et al., 2020). An inverted yield curve represents a situation in which long-term debt instruments have lower yields than short-term debt instruments of the same credit quality. In order to demonstrate this relationship between yields and maturities of Treasury fixed-income securities we can illustrate the yields of Treasury securities at fixed maturities, from 1, 2, 3 and 6 months to 1, 2, 3, 5, 7, 10, 20, and 30 years. When the yield curve inverts, short-term interest rates become higher than long-term rates, which represent a market anomaly. This will serve as an absolute indicator of market conditions, since it signals ahead of time any movements of interest rates.
+
+### S&P 500 {.tabset}
+
+The S&P 500 is largely considered an essential benchmark index for the U.S. stock market. Composed of 500 large-cap companies across a breadth of industry sectors, the index captures the pulse of the American corporate economy. The data on the S&P 500 that were utilized, were sourced from yahoo Finance and reflect the closing price of each day. The decision to analyze this equity index derives from the fact that not all components of the market move as a whole during economic downturns (Pretorius, 2002). For instance, currently the world is facing a global pandemic, consumption spending has decreased, while unemployment has increased drastically. However, the stock market has been highly stable since the first peak of cases stabilized in June. Even now that many countries including the U.S. are seeing a second or third peak, the stock market remains positive. It would be useful, therefore, to examine the relationship between absolute market conditions and this equity market index.
+
+### Dow Jones Industrial Average (DJI) {.tabset}
+
+In addition to representing 30 of the most highly capitalized and influential companies in the U.S. economy, the Dow Jones Industrial Average (DJIA) is also the financial media's most referenced U.S. market index and remains a good indicator of general market trends. Unlike the S&P 500 which is made up of the 500 largest publicly traded companies, Dow is a collection of 30 companies that are selected to represent their respective industries. The data on the Dow Jones that were utilized, were sourced from yahoo Finance and reflect the closing price of each day. Similarly to the case of the S&P 500, the decision to incorporate the Dow Jones to this analysis was due to the increasing independence of the stock market to real market conditions (Pretorius, 2002). 
+
+### VIX Index {.tabset}
+
+The Cboe Volatility Index, or VIX, is a real-time market index representing the market's expectations for volatility over the coming 30 days. Investors use the VIX to measure the level of risk, fear, or stress in the market when making investment decisions. Unlike the other indicators, VIX is focused on market sentiment and investor degree of confidence, rather than financial performance (Whaley, 2009). The data on the VIX Index that were utilized, were sourced from yahoo Finance and reflect the closing price of each day. The addition of the VIX index to the data points utilized for this project stems from its ability to predict stock market movements. Historically, VIX increases during periods of market or political turmoil and short after the stock market responds by dropping.
+
+## 2.2	Data Exploration & Cleaning {.tabset}
+
+Most financial data today are reported and analyzed in a time-series format. A time series can be defined as a series of data points indexed in a time manner. In order to make predictions on such a data format we need to examine their overall trend, their seasonality and cyclicality patterns.
+
+###	Data Cleaning {.tabset}
+
+As the data where downloaded from the U.S. Treasury’s website, as well as Yahoo Finance, there were in a relatively good condition. There were many columns that were not needed and were deleted, as we were mainly interested in stock market indexes closing prices. In addition, there were a few NA values, which well removed. Finally, as there are no treasury quotes and the stock market does not operate during the weekends, we removed any values from then and were sure to not include weekends in our daily predictions.
+
+### Data Exploration {.tabset}
+
+After plotting the time-series data for the yield curve date we can observe that the variation increases for the U.S. treasuries with shorter maturities, while the ones with a longer duration are generally more stable. When it comes to the stock market indexes, the plots reveal a direct correlation between the movements of the S&P 500 and DJI. The VIX index, on the other hand, is appear to be negatively correlated with the other two, as during its spikes the stock market falls.
+
+## 2.3	Selecting Modeling Techniques, Setting Parameters & Generating Predictions {.tabset}
+
+In order to generate predictions on the time series data, we selected four modeling techniques to be utilized, each one for different reasons. To begin with, the Holt-Winters method, known as triple exponential smoothing, is one of the many methods or algorithms that can be used to forecast data points in a series, provided that the series is “seasonal”. We used Holt Winters for both of our datasets, as it is highly time-effective and accurate for our type of data (Gelper et al., 2009). We found it was the best one at predicting U.S. treasury yields. Secondly, the ARIMA method, short for 'Auto Regressive Integrated Moving Average' is actually a class of models that 'explains' a given time series based on its own past values, that is, its own lags and the lagged forecast errors, so that equation can be used to forecast future values. We used ARIMA for both of our datasets, and is very accurate for shorter term predictions. However, we found it is not ideal for predictions of over a month in the future (Nie et al., 2012). Thirdly, the Prophet modeling technique is a procedure for forecasting time series data based on an additive model where non-linear trends are fit with yearly, weekly, and daily seasonality, plus holiday effects (Madhuri et al., 2020). This is a new modeling technique, initially introduced by Facebook. It is highly complex and the one we identified as most accurate for our stock market indices. Finally, the ETS model is a time series univariate forecasting method; its use focuses on trend and seasonal components (Jain & Mallick, 2017). We used this as a replacement to the Prophet model for our yield curve data, as the latter made the app slow to use. Due to its interactive nature, we decided it was better for the client to have a more immediate experience.
+
+### Yield Curve Model Comparison (10-year Treasury) {.tabset}
+
+#### Holt Winters 
+```{r 10 Year Holt Plot, echo=FALSE}
+# Holt
+price <- data$`10 Yr`
+    price <- price [!is.na(price)] 
+    price.ts <- ts(price, frequency = 90)
+    m <- HoltWinters(price.ts)
+      f <- forecast(m, 365)
+      usedates <- wholedates2[1:(nrow(data)+ 365)]
+      plot(f, xlab = "Years", xaxt='n')
+      axis(1, at = seq(ind2[1], ind2[length(usedates)],  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+```
+
+#### ETS
+```{r 10 Year ETS Plot, echo=FALSE}
+# ETS
+ m <- ets(price.ts)
+      f <- forecast(m, 365)
+      usedates <- wholedates2[1:(nrow(data)+ 365)]
+      plot(f, xlab = "Years", xaxt='n')
+      axis(1, at = seq(ind2[1], ind2[length(usedates)],  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+```
+
+#### ARIMA
+```{r 10 Year ARIMA Plot, echo=FALSE}
+# ARIMA
+   m <-   auto.arima(price.ts, max.p = 5, max.d = 1, max.q = 5, seasonal = F)
+      f <- forecast(m, 365)
+      
+      usedates <- wholedates2[1:(nrow(data)+ 365)]
+      plot(f, xlab = "Years", xaxt='n')
+      axis(1, at = seq(ind2[1], ind2[length(usedates)],  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+```
+
+
+### Stock Market Indices Model Comparison (S&P 500) {.tabset}
+
+#### ARIMA 
+```{r SP500 ARIMA, echo=FALSE}
+# ARIMA
+dt <- SP500
+ dt$Date <- as.Date(dt$Date)
+    x <- dt[,"Close"]
+    price <- x
+    price.ts <- ts(price,frequency = 30)
+    
+ m <-   auto.arima(price.ts, max.p = 3, max.d = 1, max.q = 3)
+      f <- forecast(m, 365)
+      usedates <- wholedates[1:(nrow(DJI)+ 365)]
+      plot(f, xlab = "Years", xaxt='n')
+      axis(1, at=  seq(ind[1], ind[length( usedates)],  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+```
+
+#### Holt Winters 
+```{r SP500 Holt, echo=FALSE}
+# Holt
+ m <- HoltWinters(price.ts)
+      f <- forecast(m, 365)
+      usedates <- wholedates[1:(nrow(DJI)+ 365)]
+      plot(f, xlab = "Years", xaxt='n')
+      axis(1, at=  seq(ind[1], ind[length( usedates)],  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+```
+
+#### Prophet
+```{r SP500 Prophet, echo=FALSE}
+# Prophet
+dt <- SP500[,c("Date","Close")]
+dt$Date <- as.Date(dt$Date)
+  colnames(dt) <- c("ds","y")
+      m <- prophet(dt)
+      future <- make_future_dataframe(m, 365)
+      forecast <- predict(m, future)
+      usedates <- wholedates[1:(nrow(DJI)+ 365)]
+      plot(1:length(forecast$ds), forecast$yhat, xlab = "Years", ylab = "close",
+           type = "l",xaxt='n')
+      axis(1, at = seq(1, length(usedates),  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+      lines(1:length(forecast$ds), forecast$yhat[1:length(forecast$ds)],
+            col = "red")
+      lines(1:length(forecast$ds), forecast$yhat_lower[1:length(forecast$ds)],
+            col = "blue")
+      lines(1:length(forecast$ds), forecast$yhat_upper[1:length(forecast$ds)],
+            col = "blue")
+```
+
+# 3	Technical Deliverable | Shiny Web Application {.tabset}
+
+## 3.1	Shiny Application: Capabilities & Instructions {.tabset}
+
+Below you can find an analytical guide to the capabilities of the interactive dashboard design, as well as specific instructions for its use. 
+
+Upon opening you application, make sure you have your ‘data’ file in the right directory. In the case it is not, you can go to your RStudio’s ‘Session’ options, select ‘set directory’ and find the file manually. If it is your first time opening the application, ensure you have installed the relevant software packages. If not, you will receive a warning sign upon opening the shinyapp file, in the top of the window. If you receive such a notification, simply click install and the RStudio will install the packages automatically. Alternatively, if you do not receive that option, you can scroll in the ‘r libraries’ section of the code, remove the # from the final line and press Control (or Command in Mac) and Enter. After these steps are complete, press the ‘Run’ button on the top right of the window and this will launch the application. 
+
+After viewing the application, you can select any theme you like and most comfortable with by using the drop down menu under ‘Select Themes’. In the night time, we recommend themes we a darker color for your convenience. 
+
+Tab 1 
+
+In the first tab of the application, you are able to view three different indices of the stock market, the S&P 500, the DJI and the VIX, using the drop down menu at the top of the panel in the left. Then underneath, you are able to select the modeling technique you would like to use for you prediction, as well as the days in the future you would like to see. To view your prediction move to the next above, called ‘Forecasting Results’. You can update your results in real time by changing the options on the left panel. To view specific information on the models, or the data, navigate to the next two panel respectively. 
+ 
+Tab 2 
+
+In the second tab of the application you are able to view four different yields corresponding to U.S. Treasury bonds of four different maturities: 3 months, 1 year, 10 years, and 30 years. You can navigate to the panel on the left and select your desired options for data points, modeling techniques, and prediction horizon, similarly to tab 1. To see the predictions, the data forecasted, as well as information on the models created and the data utilized, you can navigate between the tabs of the top.
+
+Tab 3 
+
+Finally, in the third tab, you are able to view the resulting yield curves, derived from the yield prediction of the different U.S. Treasury durations displayed in tab 2. You have the ability to view the yield curves for 12 different dates in the future, representing the end of each month, using the drop down arrow in the panel on the left. You can then select the model to be used for these predictions. Using the tab ‘Forecasting data’ you can see the specific data points corresponding to each date in the future.
+
+## 3.2 Shiny App: Iteration & Flexibility {.tabset}
+
+In the case you would like to upload an updated version of datasets from treasury.gov, or Yahoo Finance, you have that option. It is important to keep the data up-to-date, to monitor and changes in the market ahead of time. Simply change the dataset within the data file we provided with the newer version and repeat the aforementioned steps. The only limitation you might encounter is when using the ARIMA model. This issue stems from the limitations of ARIMA’s auto-tunning capabilities. As long as the data are similar, this should not have an impact on the model effectiveness; however, it is advised that we do an annual complimentary maintenance of that component.
+
+ 
+
+# 5. Business Deliverable: Data Analysis & Final Client Report {.tabset}
+
+## 5.1 U.S. Treasury Yield Predictions {.tabset}
+
+These results reflect the yields for four different durations of U.S. Treasuries, projected one year into the future, using the Holt Winters modeling technique. The recent trend of low interest rates from the U.S. treasuries has generated a lot of interest into what the outlook for these rates going forward. The results of these predictions are in line with expectation, as shorter duration securities are much more affected by short term trends in the market. The 3-month and 1-year interest rates seem to decrease further, on par with the trend observed in the recent months. Interestingly, the 10-year and the 30-year treasury rates are predicted to increase in the future, which is perhaps not in line with the trend we are seeing up to now. 
+
+### 3-Month Treasury {.tabset}
+
+```{r 3, echo=FALSE}
+# Holt
+price <- data$`3 Mo`
+    price <- price [!is.na(price)] 
+    price.ts <- ts(price, frequency = 90)
+    m <- HoltWinters(price.ts)
+      f <- forecast(m, 365)
+      usedates <- wholedates2[1:(nrow(data)+ 365)]
+      plot(f, xlab = "Years", xaxt='n')
+      axis(1, at = seq(ind2[1], ind2[length(usedates)],  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+```
+
+### 1-Year Treasury {.tabset}
+
+```{r 1, echo=FALSE}
+# Holt
+price <- data$`1 Yr`
+    price <- price [!is.na(price)] 
+    price.ts <- ts(price, frequency = 90)
+    m <- HoltWinters(price.ts)
+      f <- forecast(m, 365)
+      usedates <- wholedates2[1:(nrow(data)+ 365)]
+      plot(f, xlab = "Years", xaxt='n')
+      axis(1, at = seq(ind2[1], ind2[length(usedates)],  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+```
+
+### 10-Year Treasury {.tabset}
+
+```{r 10, echo=FALSE}
+# Holt
+price <- data$`10 Yr`
+    price <- price [!is.na(price)] 
+    price.ts <- ts(price, frequency = 90)
+    m <- HoltWinters(price.ts)
+      f <- forecast(m, 365)
+      usedates <- wholedates2[1:(nrow(data)+ 365)]
+      plot(f, xlab = "Years", xaxt='n')
+      axis(1, at = seq(ind2[1], ind2[length(usedates)],  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+```
+
+### 30-Year Treasury {.tabset}
+
+```{r 30, echo=FALSE}
+# Holt
+price <- data$`30 Yr`
+    price <- price [!is.na(price)] 
+    price.ts <- ts(price, frequency = 90)
+    m <- HoltWinters(price.ts)
+      f <- forecast(m, 365)
+      usedates <- wholedates2[1:(nrow(data)+ 365)]
+      plot(f, xlab = "Years", xaxt='n')
+      axis(1, at = seq(ind2[1], ind2[length(usedates)],  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+```
+
+## 5.2 Predicted Yield Curves {.tabset}
+
+Using the predictions of the previous graphs, we can compare the yield rates of different durations of U.S. Treasuries, effectively forming future yield curves. According to the yield curves produced, in March 2021, we anticipate a situation very similar to where the market is today, with low interest rates and a slight inversion of the curve on the 10-year point. However, in April of the same year, we observe a decrease in the 10-year rate, effectively stabilizing the curve, which we could interpret as economy recovering from COVID-19, as well as general economic optimism. The yield for the 30-year treasury remains high, probably due to its longer tenure. The market conditions, however, appear to shift in November of 2021, when we see a slight curve inversion. This inversion is not alarming in its current predicted level, as it could be in par with historical trends and the cyclical nature of the economy. Slight inversions are not uncommon in the history of the market, even without any major recession. Most notably, during the economic slowdown experience in 2019. However, it could also signal something more significant and should be closely monitored.
+
+### Comparisions of Yield Curves {.tabset}
+
+```{r Comparisions, echo=FALSE}
+d <- ff3[ff3$Date == "2021-03-31", -1]
+plot(1:4, as.numeric(d[1,]), xaxt = "n", type = "l", lwd = 2, 
+     col = "darkorange", ylab = "predicted rate",xlab = "2021-03-31")
+points(cbind(1:4),as.numeric(d[1,]), pch = 16, col = "blue")
+axis(1, at = 1:4, labels = colnames(yield))
+      
+d <- ff3[ff3$Date == "2021-04-30", -1]
+plot(1:4, as.numeric(d[1,]), xaxt = "n", type = "l", lwd = 2, 
+     col = "darkorange", ylab = "predicted rate",xlab = "2021-04-30")
+points(cbind(1:4),as.numeric(d[1,]), pch = 16, col = "blue")
+axis(1, at = 1:4, labels = colnames(yield))
+      
+d <- ff3[ff3$Date == "2021-11-30", -1]
+plot(1:4, as.numeric(d[1,]), xaxt = "n", type = "l", lwd = 2, 
+     col = "darkorange", ylab = "predicted rate",xlab = "2021-11-30")
+points(cbind(1:4),as.numeric(d[1,]), pch = 16, col = "blue")
+axis(1, at = 1:4, labels = colnames(yield))
+```
+
+## 5.3	Stock Market Indices {.tabset}
+
+These results reflect the three stock market indices, projected one year into the future, using the Prophet modeling technique. We can observe that as the volatility of an index increases, the prediction line thickens as well. This is to be anticipated, as the possible positions of the line in the future vary slightly more. The predicted time series on the stock market is it looking favorable, as the S&P 500 index in the DJI indicate growth. These indices appear to show a slight cyclicality, while having and overall positive trend, which is in line with historic performance. When it comes to the VIX index, we do observe that there is a modest volatility spike, during Q4 of 2021, which is in line with the slight inversion we observe in the anticipated yield curves during November of this year. This prediction is not surprising, given the cyclicality nature of the index, along with the impact of the COVID-19 pandemic. 
+
+### DJI {.tabset}
+
+```{r DJI Prophet Plot, echo=FALSE}
+# prophet
+dt <- DJI[,c("Date","Close")]
+dt$Date <- as.Date(dt$Date)
+  colnames(dt) <- c("ds","y")
+      m <- prophet(dt)
+      future <- make_future_dataframe(m, 365)
+      forecast <- predict(m, future)
+      usedates <- wholedates[1:(nrow(DJI)+ 365)]
+      plot(1:length(forecast$ds), forecast$yhat, xlab = "Years", ylab = "close",
+           type = "l",xaxt='n')
+      axis(1, at = seq(1, length(usedates),  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+      lines(1:length(forecast$ds), forecast$yhat[1:length(forecast$ds)],
+            col = "red")
+      lines(1:length(forecast$ds), forecast$yhat_lower[1:length(forecast$ds)],
+            col = "blue")
+      lines(1:length(forecast$ds), forecast$yhat_upper[1:length(forecast$ds)],
+            col = "blue")
+```
+
+### S&P 500 {.tabset}
+
+```{r SP500 Prophet Plot, echo=FALSE}
+# Prophet
+dt <- SP500[,c("Date","Close")]
+dt$Date <- as.Date(dt$Date)
+  colnames(dt) <- c("ds","y")
+      m <- prophet(dt)
+      future <- make_future_dataframe(m, 365)
+      forecast <- predict(m, future)
+      usedates <- wholedates[1:(nrow(DJI)+ 365)]
+      plot(1:length(forecast$ds), forecast$yhat, xlab = "Years", ylab = "close",
+           type = "l",xaxt='n')
+      axis(1, at = seq(1, length(usedates),  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+      lines(1:length(forecast$ds), forecast$yhat[1:length(forecast$ds)],
+            col = "red")
+      lines(1:length(forecast$ds), forecast$yhat_lower[1:length(forecast$ds)],
+            col = "blue")
+      lines(1:length(forecast$ds), forecast$yhat_upper[1:length(forecast$ds)],
+            col = "blue")
+```
+
+### VIX Index {.tabset}
+
+```{r VIX Prophet Plot, echo=FALSE}
+# prophet
+dt <- VIX[,c("Date","Close")]
+dt$Date <- as.Date(dt$Date)
+  colnames(dt) <- c("ds","y")
+      m <- prophet(dt)
+      future <- make_future_dataframe(m, 365)
+      forecast <- predict(m, future)
+      usedates <- wholedates[1:(nrow(DJI)+ 365)]
+      plot(1:length(forecast$ds), forecast$yhat, xlab = "Years", ylab = "close",
+           type = "l",xaxt='n')
+      axis(1, at = seq(1, length(usedates),  length.out=7), 
+           labels=seq(usedates[1], tail(usedates,1), length.out=7))
+      lines(1:length(forecast$ds), forecast$yhat[1:length(forecast$ds)],
+            col = "red")
+      lines(1:length(forecast$ds), forecast$yhat_lower[1:length(forecast$ds)],
+            col = "blue")
+      lines(1:length(forecast$ds), forecast$yhat_upper[1:length(forecast$ds)],
+            col = "blue")
+```
+
+# 6.	Recommendations {.tabset}
+
+## 6.1 Recommendations on the Predicted State of the Yield Curve {.tabset}
+
+As noted in the business analysis section, the yield curve data for November 2021 indicates some cause for concern, as it could point to a potential turn on the markets. For that reason, the U.S. Department of Treasury and Federal Reserve should monitor closely the evolution of predictions, towards the end of Q3. In case the curve prediction fail to stabilize, they should prepare for the need to provide further stimulus and/or bailout funding, during the end of 2021, as well as the beginning of 2022. In addition, in the unfortunate scenario of an economic decline, it is advised that the U.S. Department of Treasury and Federal Reserve maintain the practice of quantitative easing and keep the interest rates low, to encourage movement in the economy. Furthermore, the increase noticed in 10-Year rates could signify inflation concerns from the market, which are already prevalent given the significant levels of quantitative easing that has been applied to the market in recent years. As such we would recommend that both the Fed and Treasury take notice and start to investigate the scenario of deploying monetary policies to curb inflation.
+
+## 6.2 Recommendations on the Predicted State of the Stock Market {.tabset}
+
+The results provided by the aforementioned analysis, carried out on S&P 500 the DJI on the VIX, indicate room for growth from the perspective of the stock market past the current bullish run the market has experienced since the COVID outbreak. When it comes to anticipated volatility, however, the VIX is seeing a spike around Q4 of 2021. The “stubbornness” of the VIX index to not subside, as predicted in our model, is not far from market expectations given concern around the medium-term economic outlook and recovery post COVID. The volatility of equity markets has increased in recent months, and the continued divergence of real economic recovery versus the stock market does concern investors. Resultingly, the Fed and Treasury departments need to focus on increasing stability in the markets and reinsuring investors to remain patient and confident in investments. Furthermore, to mitigate this increased spike in the VIX the Fed and Treasury should address the core of investor concerns, and in addition to backing a strong stimulus package should make sure that the stimulus is directed towards suffering areas of the economy, helping to close the divergence between the equity markets and the “real” economy. In addition, given the indicated results of this study, the Fed and the Treasury should engage in further analysis to understand how the results predicted from our timeseries analysis compare with models that use underlying indicators to predict the state of equity markets going forward. Doing so will help validate results and help set expectations going forward, and will also help them to analysis where the risks indicated in our study may emerge from.
+
+
+# 7. Works Cited {.tabset}
+
+Cooper, D., Fuhrer, J. and Olivei, G., 2020. Predicting Recessions Using The Yield Curve: The Role Of The Stance Of Monetary Policy. [online] Federal Reserve Bank of Boston. 
+
+Gelper, S., Fried, R. and Croux, C., 2009. Robust forecasting with exponential and Holt-Winters smoothing. Journal of Forecasting, p.n/a-n/a.
+
+Jain, G. and Mallick, B., 2017. A Study of Time Series Models ARIMA and ETS. SSRN Electronic Journal,.
+
+Krześniak, A. (2009). From illiquid financial instrument to market distress ? selected institutional circumstances of the credit crisis. Equilibrium. Quarterly Journal of Economics and Economic Policy, 2(1), 29-38. https://doi.org/10.12775/EQUIL.2009.003
+
+Madhuri, C., Chinta, M. and Kumar, V., 2020. Stock Market Prediction for Time-series Forecasting using Prophet upon ARIMA. 2020 7th International Conference on Smart Structures and Systems (ICSSS),.
+
+Nie, H., Liu, G., Liu, X. and Wang, Y., 2012. Hybrid of ARIMA and SVMs for Short-Term Load Forecasting. Energy Procedia, 16, pp.1455-1460.
+
+Panetta, F., Angelini, P., Albertazzi, U., Columba, F., Cornacchia, W., Di Cesare, A., Pilati, A., Salleo, C. and Santini, G., 2009. Financial Sector Pro-Cyclicality: Lessons from the Crisis. SSRN Electronic Journal.
+
+Pretorius, E., 2002. Economic determinants of emerging stock market interdependence. Emerging Markets Review, 3(1), pp.84-105.
+
+Whaley, R., 2009. Understanding the VIX. The Journal of Portfolio Management, 35(3), pp.98-105.
