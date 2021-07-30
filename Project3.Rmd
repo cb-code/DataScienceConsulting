@@ -1,0 +1,711 @@
+---
+title: 'Mobile Phones'
+output: flexdashboard::flex_dashboard
+runtime: shiny
+---
+
+
+```{r setup, include = FALSE}
+library(shiny);
+library(Hmisc);
+library(knitr);
+
+library(rmarkdown);
+library(flexdashboard);
+
+library(tidyverse);
+library(formulaic);
+
+library(DT);
+library(data.table);
+
+assignInNamespace('cedta.override', c(data.table:::cedta.override,'rmarkdown'), 'data.table')
+
+opts_chunk$set(echo = FALSE, comment='', warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=55), tidy = TRUE)
+
+setwd("~/Desktop/5902/IP3/Reports")
+```
+
+```{r read_data}
+cellphones <- fread('../Data/mobile phone survey data.csv', verbose = F);
+```
+
+```{r source_functions}
+source('constants.R');
+source('functions.R');
+```
+
+```{r constants}
+# Most constants have been placed in the file constants.R to unify reporting and
+# application work. Additional functions unique to reporting engine added here.
+
+# Constant for id Var
+idVal <- 'id';
+
+# Constants for Respondent Vars
+ageVal <- 'Age';
+genderVal <- 'Gender';
+incomeVal <- 'Income';
+regionVal <- 'Region';
+personaVal <- 'Persona';
+
+# Constant for Product Var
+productVal <- 'Product';
+
+# Constants for Engagement Vars
+awarenessVal <- 'Awareness';
+considerationVal <- 'Consideration';
+consumptionVal <- 'Consumption';
+satisfactionVal <- 'Satisfaction';
+advocacyVal <- 'Advocacy';
+
+# Creating Group Values for Age & Income (which still need to be spliced)
+ageGroupVal <- 'ageGroups';
+incomeGroupVal <- 'incomeGroups';
+
+# Creating Spliced Factor Levels for Group Vars for Age & Income
+cellphones$ageGroups <- cut(cellphones$Age, breaks = c(17, 34, 49, 64, Inf, 
+  right = FALSE), labels = c('< 17 years old', '18-34 years old', '35-49 years 
+  old', '50-64 years old', '65+ years old'));
+cellphones$incomeGroups <- cut(cellphones$Income, breaks = c(0, 49999, 74999, 
+  99999, 149999, Inf), labels = c('<$50,000', '$50,000 - <$75,000', '$75,000 - 
+    <$100,000', '$100,000 - <$150,000', '$150,000+'));
+
+# Ensuring Factor Levels are Unique For All Vars
+ageGroups <- cellphones[ , sort(unique(get(ageGroupVal)))];
+genderGroups <- cellphones[ , sort(unique(get(genderVal)))];
+incomeGroups <- cellphones[ , sort(unique(get(incomeGroupVal)))];
+regionGroups <- cellphones[ , sort(unique(get(regionVal)))];
+personaGroups <- cellphones[ , sort(unique(get(personaVal)))];
+
+# Ensuring Factor Levels i.e. Brands are Unique for All Product Vars
+productVal <- cellphones[ , unique(get(productVal))];
+
+# Constants for BP Vars
+userFriendlyBP <- 'BP_User_Friendly_0_10';
+fastBP <- 'BP_Fast_0_10';
+batteryLifeBP <- 'BP_Battery_Life_0_10';
+cameraBP <- 'BP_Camera_0_10';
+sleekBP <- 'BP_Sleek_0_10';
+stylishBP <- 'BP_Stylish_0_10';
+statusSymbolBP <- 'BP_Status_Symbol_0_10';
+goodScreenSizeBP <- 'BP_Good_Screen_Size_0_10';
+boringBP <- 'BP_Boring_0_10';
+bulkyBP <- 'BP_Bulky_0_10';
+fragileBP <- 'BP_Fragile_0_10';
+expensiveBP <- 'BP_Expensive_0_10';
+
+# Constants for Product(Brand) Vars
+AllButtons <- 'All Buttons';
+AppMap <- 'App Map';
+Buzzdial <- 'Buzzdial';
+Cellularity <- 'Cellularity';
+CommunicNation <- 'Communic Nation';
+MaybeMobile <-  'Maybe Mobile';
+MobileMayhem <- 'Mobile Mayhem';
+MobilitEE <- 'MobilitEE';
+Mobzilla <- 'Mobzilla';
+NextText <- 'Next Text';
+NoButtons <- 'No Buttons';
+OfftheHook <- 'Off the Hook';
+Phonatics <- 'Phonatics';
+PhoneZone <- 'PhoneZone';
+PocketDialz <- 'PocketDialz';
+RingRing <- 'RingRing';
+Screenz <- 'Screenz';
+Smartophonic <- 'Smartophonic';
+SpeedDials <- 'SpeedDials';
+Triumphone <- 'Triumphone';
+```
+
+```{r variables}
+# Respondent Variables, Describe Customer Demographics and Behavioral Traits
+resVars <- c(ageGroupVal, genderVal, incomeGroupVal, regionVal, personaVal);
+
+# Engagement Variables, Cover Various Means of Ascertaining Customer Opinion
+engVars <- c(awarenessVal, considerationVal, consumptionVal, satisfactionVal,
+  advocacyVal);
+
+# Brand Perception Variables (BP), Contain User Feedback/Ratings On Topics
+bpVars <- c(userFriendlyBP, fastBP, batteryLifeBP, cameraBP, sleekBP, stylishBP, 
+  statusSymbolBP, goodScreenSizeBP, boringBP, bulkyBP, fragileBP, expensiveBP);
+
+# Product Variables (The Different Brand / Product Types of Cell Phones)
+prodVars <- c(AllButtons, AppMap, Buzzdial, Cellularity, CommunicNation,
+  MaybeMobile, MobileMayhem, MobilitEE, Mobzilla, NextText, NoButtons, 
+  OfftheHook, Phonatics, PhoneZone, PocketDialz, RingRing, Screenz, Smartophonic,
+  SpeedDials, Triumphone)
+```
+
+```{r functions}
+# Most functions have been placed in the file functions.R to unify reporting and
+# application work. Additional functions unique to reporting engine added here.
+
+ovDiff <- function(q4_1, ovEngVar1, ovEngVar2){
+
+  if(ovEngVar1 == 'Awareness'){
+
+    if(ovEngVar2 == 'Consideration'){
+      ovDiff <- abs(q4_1$Awareness - q4_1$Consideration)
+    }
+
+    else if(ovEngVar2 == 'Consumption'){
+      ovDiff <- abs(q4_1$Awareness - q4_1$Consumption)
+    }
+
+    else if(ovEngVar2 == 'Satisfaction'){
+      ovDiff <- abs(q4_1$Awareness - q4_1$Satisfaction)
+    }
+
+    else if(ovEngVar2 == 'Advocacy'){
+      ovDiff <- abs(q4_1$Awareness - q4_1$Advocacy)
+    }
+
+  }
+
+  else if(ovEngVar1 == 'Consideration'){
+
+    if(ovEngVar2 == 'Consumption'){
+      ovDiff = abs(q4_1$Consideration - q4_1$Consumption)
+    }
+
+    else if(ovEngVar2 == 'Satisfaction'){
+      ovDiff = abs(q4_1$Consideration - q4_1$Satisfaction)
+    }
+
+    else if(ovEngVar2 == 'Advocacy'){
+      ovDiff= abs(q4_1$Consideration - q4_1$Advocacy)
+    }
+
+  }
+
+  else if(ovEngVar1 == 'Consumption'){
+
+    if(ovEngVar2 == 'Satisfaction'){
+      ovDiff = abs(q4_1$Consumption - q4_1$Satisfaction)
+    }
+
+    else if(ovEngVar2 == 'Advocacy'){
+      ovDiff = abs(q4_1$Consumption - q4_1$Advocacy)
+    }
+
+  }
+
+  else if(ovEngVar1 == 'Satisfaction'){
+
+    if(ovEngVar2 == 'Advocacy'){
+      ovDiff = abs(q4_1$Satisfaction - q4_1$Advocacy)
+    }
+
+  }
+
+  else if((ovEngVar1 == 'Awareness' & ovEngVar2 == 'Awareness') |
+          (ovEngVar1 == 'Consideration' & ovEngVar2 == 'Consideration' ) |
+          (ovEngVar1 == 'Consumption' & ovEngVar2 == 'Consumption') |
+          (ovEngVar1 == 'Satisfaction' & ovEngVar2 == 'Satisfaction') |
+          (ovEngVar1 == 'Advocacy' & ovEngVar2 == 'Advocacy' )){
+
+    ovDiff <- 0
+
+  }
+
+  ovDiffs <- ovDiff
+
+  return(ovDiffs)
+
+}
+
+###--------------------------------------------------------------------------###
+# Function: Prof. David Shilane, Lecture 04, APAN S5902, Columbia University SPS
+###--------------------------------------------------------------------------###
+
+round_numerics <- function(x, digits = 2){
+  
+    if (is.numeric(x)) {
+        x <- round(x = x, digits = digits)
+    }
+    return(x)
+}
+###--------------------------------------------------------------------------###
+# Function: Haotian Yue, APAN S5902, Columbia University SPS (Current Student)
+###--------------------------------------------------------------------------###
+
+round_table <- function(values, digits = 2){
+  
+    tabled_values <- table(values);
+    percents <- 100 * tabled_values/(sum(tabled_values));
+    rounded_table <- round_numerics(x = percents, digits = digits);
+    
+    return(rounded_table)
+    
+}
+###--------------------------------------------------------------------------###
+# Function: Haotian Yue, APAN S5902, Columbia University SPS (Current Student)
+###--------------------------------------------------------------------------###
+
+engage <- function(values, output_values, input_values, model_type){
+  
+  eng <- fit(values = values, output_values = output_values, 
+    input_values = input_values, model_type = model_type);
+  
+  return(eng);
+}
+###--------------------------------------------------------------------------###
+# Function: Haotian Yue, APAN S5902, Columbia University SPS (Current Student)
+###--------------------------------------------------------------------------###
+
+fit <- function(values, output_values, input_values, model_type, digits = 3){
+  
+  final_formula <- create.formula(outcome.name = output_values,  input.names =
+    input_values, dat = data, reduce = TRUE);
+  
+  if(model_type == 'logistic'){
+    mod <- glm(formula = final_formula, family = 'binomial', values = data);
+    mod_summary <- logistic_regression_summary(glm_mod = mod, digits = digits);
+  }
+  
+  if(model_type == 'linear'){
+    mod <- lm(formula = final_formula, values = data);
+    mod_summary <- linear_regression_summary(lm_mod = mod, digits = digits);
+  }
+
+  mod_summary_rounded <- mod_summary[, lapply(X = .SD, FUN = 'round_numerics', 
+    digits = digits)];
+  
+  return(mod_summary_rounded);
+  
+}
+###--------------------------------------------------------------------------###
+# Function: Haotian Yue, APAN S5902, Columbia University SPS (Current Student)
+###--------------------------------------------------------------------------###
+
+logistic_regression_summary <- function(glm_mod, digits = 3, alpha = 0.05){
+  
+  glm_coefs <- as.data.table(summary(glm_mod)$coefficients, keep.rownames = TRUE);
+  setnames(x = glm_coefs, old = 'rn', new = 'Variable');
+  z <- qnorm(p = 1-alpha/2, mean = 0, sd = 1);
+  glm_coefs[, Odds.Ratio := exp(Estimate)];
+  glm_coefs[, OR.Lower.95 := exp(Estimate - z * `Std. Error`)];
+  glm_coefs[, OR.Upper.95 := exp(Estimate + z * `Std. Error`)];
+  
+  return(glm_coefs[])
+  
+}
+###--------------------------------------------------------------------------###
+# Function: Haotian Yue, APAN S5902, Columbia University SPS (Current Student)
+###--------------------------------------------------------------------------###
+
+linear_regression_summary <- function(lm_mod, digits = 3, alpha = 0.05){
+  
+  lm_coefs <- as.data.table(summary(lm_mod)$coefficients, keep.rownames = TRUE);
+  setnames(x = lm_coefs, old = 'rn', new = 'Variable');
+
+  z <- qnorm(p = 1 - alpha/2, mean = 0, sd = 1);
+  
+  lm_coefs[, Coef.Lower.95 := Estimate - z * `Std. Error`];
+  lm_coefs[, Coef.Upper.95 := Estimate + z * `Std. Error`];
+  
+  return(lm_coefs)
+  
+}
+###--------------------------------------------------------------------------###
+# Function: Haotian Yue, APAN S5902, Columbia University SPS (Current Student)
+###--------------------------------------------------------------------------###
+
+agg <- function(agg){
+  
+  mean_agg <- mean(get(input$aeEngState)[-agg],na.rm = TRUE);
+  
+  return(mean_agg)
+  
+}
+```
+
+Introduction
+=====================================  
+
+Hello,
+
+Please find the following Dynamic Reporting Engine tool for your convenience.
+You will find that you can pull up the data for various questions and variables.
+
+Thank you,
+
+C. Blanchard
+chb2132
+
+1|Respondent Variables
+===================================
+
+Row {data-height=500}
+-------------------------------------
+```{r q1_input}
+inputPanel(
+  selectInput(inputId = 'resVar', label = 'Respondent Variable:', choices = 
+                resVars, selected = NULL, multiple = FALSE, selectize = TRUE)
+)
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q1_output}
+
+cellphones <- fread('../Data/mobile phone survey data.csv', verbose = F);
+
+renderPlot({
+  
+  q1_0 <- round_table(values = cellphones[get(productVal) == get(productVal)[1],
+    get(input$resVar)]);
+  
+  barplot(height = q1_0, space = 0.01, las = 1, main = input$resVar, ylab = 
+    'Percentages', xlab = input$resVar, ylim = c(0, 1.2 * max(q1_0, na.rm = TRUE)))
+  
+    space_val = 0
+    
+    text(x = -0.3 + 1:length(q1_0) * (1 + space_val), y = q1_0, labels = 
+      sprintf('%.1f%%', q1_0), pos = 2)
+})
+```
+
+2|Segmented Outcomes
+=====================================  
+
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q2_input}
+inputPanel(
+  
+  selectInput(inputId = 'soEngState', label = 'Engagement:', choices = 
+    engVars, selected = NULL, multiple = FALSE, selectize = TRUE),
+    
+  selectInput(inputId = 'soAgeGroups', label = 'Age Groups:', choices = 
+    ageGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'soGenderGroups', label = 'Gender Groups:', choices = 
+    genderGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'soIncomeGroups', label = 'Income Groups:', choices = 
+    incomeGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'soRegionGroups', label = 'Region Groups:', choices = 
+    regionGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'soPersonaGroups', label = 'Persona Groups:', choices = 
+    personaGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+  
+  sliderInput(inputId = 'top_N', label = 'Top N Products:', min = 1, max = 20, 
+    value = 10, step = 1, round = FALSE, ticks = TRUE, animate = FALSE)
+)
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q2_output}
+cellphones <- fread('../Data/mobile phone survey data.csv', verbose = F);
+
+renderDT({
+  
+  q2_0 <- cellphones[get(ageGroup) %in% input$soAgeGroups & get(genderGroups) 
+    %in% input$soGenderGroups & get(incomeGroupVal) %in% input$soIncomeGroups & 
+    get(regionGroups) %in% input$soRegionGroups & get(personaGroups) %in% 
+    input$soPersonaGroups];
+  
+  q2_1 <- q2_0[,.(Avg = mean(x = get(input$soEngState), na.rm = TRUE) * 100),
+    by = 'Product'];
+  
+  q2_1 %>% head(input$top_N);
+  
+})
+
+renderPlot({
+  
+  outcomeRates <- cellphones[, .(Avg = 100 * mean(get(input$eng_state), 
+    na.rm = TRUE) / max(get(input$eng_state), na.rm = TRUE)), by = 'Product']
+
+  barplot(height = outcomeRates, names.arg = outcomeRates,
+    main = input$eng_state, ylab = sprintf('Rate of %s', input$eng_state), ylim 
+    = c(-100, 120), xaxt = 'n', axes = FALSE)
+  
+  axis(side = 2, at = 20 * (0:5), las = 2)
+  
+  text(x = -0.5 + 1.02 * 1:outcomeRates[.N], y = -15, labels = 
+    outcomeRates[get(productVal)], srt = 45, pos = 2)
+
+  space_val = 0
+  
+  text(x = -0.4 + 1:outcomeRates[.N] * (1 + space_val), y = outcomeRates[Avg], 
+    labels = sprintf('%.1f%%', outcomeRates[Avg]), pos = 3)
+  
+})
+```
+
+3|Overall Brand Perceptions
+=====================================  
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q3_input}
+inputPanel(
+  
+  selectInput(inputId = 'bpAgeGroups', label = 'Age Groups:', choices = 
+    ageGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+  
+  selectInput(inputId = 'bpGenderGroups', label = 'Gender Groups:', choices = 
+    genderGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+  
+  selectInput(inputId = 'bpIncomeGroups', label = 'Income Groups:', choices = 
+    incomeGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+  
+  selectInput(inputId = 'bpRegionGroups', label = 'Region Groups:', choices = 
+    regionGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+  
+  selectInput(inputId = 'bpPersonaGroups', label = 'Persona Groups:', choices = 
+    personaGroups,selected = NULL, multiple = TRUE, selectize = TRUE),
+  
+  # Are we supposed to be aggregating this Brand Perception beforehand and 
+  # providing for the specific chosen subsets of bp variables selected and 
+  # subgroups within each?
+  
+  selectInput(inputId = 'bpVarsChoice', label = 'Brand Perception Variables:', 
+    choices = bpVars, selected = NULL, multiple = FALSE, selectize = TRUE),
+  
+  sliderInput(inputId = 'top_N', label = 'No. Products:', min = 1, max = 20, 
+        value = 10, step = 1)
+)
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q3_output}
+cellphones <- fread('../Data/mobile phone survey data.csv', verbose = F);
+
+renderDT({
+  
+  q3_0 = cellphones[get(ageGroupVal) %in% input$bpAgeGroups & get(genderGroups)
+    %in% input$bpGenderGroups & get(incomeGroupVal) %in% input$bpIncomeGroups & 
+    get(regionGroups) %in% input$bpRegionGroups & get(personaGroups) %in% 
+    input$bpPersonaGroups];
+
+  q3_0 <- cellphones[,lapply(.SD, mean, na.rm = TRUE), by = 'Product', 
+    .SDcols = c(names(cellphones)[9:20])]
+
+  # Correcting BP Values According to Given Equation for Negative BP Traits/Vars
+  
+  q3_1 <- q3_0
+  
+  q3_1$boringBP <- 10 - q3_1$boringBP
+  q3_1$bulkyBP <- 10 - q3_1$bulkyBP
+  q3_1$fragileBP <- 10 - q3_1$fragileBP
+  q3_1$expensiveBP <- 10 - q3_1$expensiveBP
+  
+  q3_2 <- data.table(Brand = q3_1$Product, Perception = rowMeans(q3_1[ , 2:13]))
+  
+  q3_2 <- q3_2[order(-Perception)]
+  
+  q3_2 %>% head(input$top_N)
+
+})
+
+renderPlot({
+  
+  q3_table <- round_table(values = cellphones[, input$bpVarsChoice,
+                                              get(productVal)])
+  
+  barplot(height = q3_table, space= 0.01, las = 1, ylab = 'Overall Brand Perception', 
+    xlab = input$bpVarsChoice, ylim = c(0, 1.2 * max(q3_table[mean], na.rm = 
+    TRUE)))
+  
+    text(x = -0.4 + 1:length(q3_table), y = q3_table, labels = 
+      sprintf('%.1f%%', q3_table), pos = 3)
+})
+```
+
+4|Gaps in Outcomes
+=====================================  
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q4_input}
+
+inputPanel(
+
+  checkboxInput(inputId = 'goShowPercent', label = 'Show/Hide %s:', value = FALSE),
+    
+  sliderInput(inputId = 'top_N', label = 'No. Products:', min = 1, max = 20, 
+              value = 10, step = 1, round = FALSE, animate = FALSE),
+  
+  sliderInput(inputId = "Digits", label = "No. Digits", min = 1, max = 10, 
+    value = 5, step = 1, round = FALSE, animate = FALSE),
+  
+  selectInput(inputId = 'ovEngVar1', label = 'First Outcome Variable:', choices = 
+    engVars, selected = 'Awareness', multiple = FALSE, selectize = TRUE),
+  
+  selectInput(inputId = 'ovEngVar2', label = 'Second Outcome Variable:', choices = 
+    engVars, selected = 'Consumption', multiple = FALSE, selectize = TRUE)
+  
+)
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q4_output}
+
+renderDT({
+  
+  cellphones <- fread('../Data/mobile phone survey data.csv', verbose = F);
+  
+  q4_0 <- cellphones[, c(7:8, 21:24)];
+  
+  q4_1 <- q4_0[, .(Awareness = mean(x = Awareness, na.rm = TRUE) * 100, Consideration = mean(x = Consideration, na.rm = TRUE) * 100,
+    Consumption = mean(x = Consumption, na.rm = TRUE) * 100, Satisfaction = mean(x = Satisfaction, na.rm = TRUE) * 10, Advocacy = 
+    mean(x = Advocacy, na.rm = TRUE) * 100), by = 'Product'];
+  
+  ovEngVar1 <- input$ovEngVar1
+  ovEngVar2 <- input$ovEngVar2
+  
+  q4_1$ovDiff <- ovDiff(q4_1 = q4_1, ovEngVar1 = ovEngVar1, ovEngVar2 = ovEngVar2)
+  q4_1$ovDiff <- round_numerics(x = q4_1$ovDiff, input$Digits)
+  
+  q4_1 <- q4_1[, c('Awareness', 'Consideration', 'Consumption', 'Satisfaction', 
+    'Advocacy') := NULL][order(-ovDiff)]
+  
+  q4_vect <- as.vector(as.numeric(q4_1$ovDiff))
+  
+  if (input$goShowPercent == TRUE){
+    q4_1$ovDiff <- paste(q4_1$ovDiff, '%', sep = '')
+  }
+  
+  colnames(q4_1) <- c('Product', 'OV Difference')
+  
+  q4_1 %>% head(input$top_N)
+  
+})
+  
+renderPlot({
+  
+  cellphones <- fread('../Data/mobile phone survey data.csv', verbose = F);
+  
+  q4_0 <- cellphones[, c(7:8, 21:24)];
+  
+  q4_1 <- q4_0[, .(Awareness = mean(x = Awareness, na.rm = TRUE) * 100, Consideration = mean(x = Consideration, na.rm = TRUE) * 100,
+    Consumption = mean(x = Consumption, na.rm = TRUE) * 100, Satisfaction = mean(x = Satisfaction, na.rm = TRUE) * 10, Advocacy = 
+    mean(x = Advocacy, na.rm = TRUE) * 100), by = 'Product'];
+  
+  ovEngVar1 <- input$ovEngVar1
+  ovEngVar2 <- input$ovEngVar2
+  
+  q4_1$ovDiff <- ovDiff(q4_1 = q4_1, ovEngVar1 = ovEngVar1, ovEngVar2 = ovEngVar2)
+  q4_1$ovDiff <- round_numerics(x = q4_1$ovDiff, input$Digits)
+  
+  q4_1 <- q4_1[, c('Awareness', 'Consideration', 'Consumption', 'Satisfaction', 
+    'Advocacy') := NULL][order(-ovDiff)]
+  
+  #q4_table <- datatable(q4_1, rownames = FALSE)
+  #colnames(q4_table) <- c('Product', 'ovDiff')
+  
+  if (input$goShowPercent == TRUE){
+    q4_1$ovDiff <- paste(q4_1$ovDiff, '%', sep = '')
+  }
+  
+  colnames(q4_1) <- c('Product', 'OV Difference')
+  
+  q4_1 <- q4_1 %>% head(input$top_N)
+  
+  barplot(height = q4_1, names.arg = productVal, main = sprintf('%s vs. %s', 
+    ovEngVar1, ovEngVar2), ylim = c(0, 1.2 * max(q4_1, na.rm = TRUE)),
+    ylab)
+  
+  #if(input$goShowPercent == TRUE){
+  #  space_val = 0
+  #  text(x = length(q4_1), y = q4_1, labels = sprintf('%.1f%%', q4_1), pos = 3)
+  #}
+
+})
+```
+
+5|Aggregated Engagement
+=====================================  
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q5_input}
+
+inputPanel(
+  
+  selectInput(inputId = 'aeEngState', label = 'State of Engagement:', choices =
+   engVars, selected = NULL, multiple = FALSE, selectize = TRUE),
+    
+  selectInput(inputId = 'aeProdChoice', label = 'Product(s):', choices = prodVars, 
+    selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'aeAddVars', label = 'Additional Variables:', choices = 
+    resVars, selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'aeAgeGroup', label = 'Age Groups:', choices = 
+    ageGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'aeGenderGroup', label = 'Gender Groups:', 
+    choices = genderGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'aeIncomeGroup', label = 'Income Groups:', 
+    choices = incomeGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'aeRegionGroup', label = 'Region Groups:', 
+    choices = regionGroups, selected = NULL, multiple = TRUE, selectize = TRUE),
+    
+  selectInput(inputId = 'aePersonaGroup', label = 'Persona Groups:', 
+    choices = personaGroups, selected = NULL, multiple = TRUE, selectize = TRUE)
+  
+)
+```
+
+Row {data-height=500}
+-------------------------------------
+
+```{r q5_output}
+cellphones <- fread('../Data/mobile phone survey data.csv', verbose = F);
+
+renderDT({
+  
+  q5_0 = cellphones[, aggEng := sapply(seq_along(input$aeEngState), function(agg)
+    mean(input$aeEngState)[-agg]), by = list(id)];
+  
+  q5_0[is.na(q5_0)] = 0;
+  
+  q5_0$aggEng = round_numerics(x = q5_0$aggEng, digits = 4)
+  
+  q5_1 <- q5_0[get(productVal) %in% input$aeProdChoice & get(ageVal) %in% 
+      input$aeAgeGroup & get(genderVal) %in% input$aeGenderGroup & 
+      get(incomeVal) %in% input$aeIncomeGroup & get(regionVal) %in% 
+      input$aeRegionGroup & get(personaVal) %in% input$aePersonaGroup];
+  
+  if(input$aeEngState == satisfactionVal){
+    model <- 'linear'
+    dynamic_table = c('Variable','Estimate','Coef.Lower.95',
+      'Coef.Upper.95','Pr(>|t|)')
+  }
+   
+  if(input$aeEngState != satisfactionVal){
+    model <- 'logistic'
+    dynamic_table = c('Variable','Odds.Ratio','OR.Lower.95',
+      'OR.Upper.95','Pr(>|z|)')
+   }
+   
+  q5_table <- fit(values = q5_1, output_values = input$aeEngState, input_values = 
+    input$aeAddVars, model_type = model)
+   
+  q5_table <- datatable(q5_table);
+   
+  q5_table %>% select(dynamic_table);
+   
+})
+```
