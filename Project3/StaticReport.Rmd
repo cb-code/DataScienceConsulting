@@ -1,0 +1,1423 @@
+---
+title: "Individual Project 3"
+author: "C. Blanchard - chb2132"
+date: "October 31, 2020"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment="", warning = FALSE, message = FALSE, tidy.opts=list(width.cutoff=55), tidy = TRUE)
+
+library(DT);
+library(pscl);
+library(MASS);
+library(caret);
+library(logistf);
+library(data.table);
+library(InformationValue);
+
+library(shiny);
+
+# For Reproducibility:
+set.seed(1984);
+```
+
+```{r read_data}
+cellphones <- fread("../Data/mobile phone survey data.csv", verbose = F);
+```
+
+```{r source}
+# Be sure to change the PATH below to point to your local working directory!
+setwd("~/Desktop/5902/IP3/Reports");
+
+source("constants.R");
+source("functions.R");
+```
+
+```{r constants}
+# Please refer to the constants.R file for r constants
+# I.e. source("constants.R") in the source chunk
+```
+
+```{r functions}
+# Please refer to the functions.R file for r functions
+# I.e. source("functions.R") in the source chunk
+```
+
+# Report {.tabset}
+
+## Part 1:  Summary
+
+```{r part1}
+head(cellphones, 10)
+```
+The dataset we are using is taken from a mobile phone survey that contains
+200,000 entries--quite a large amount of data--over 24 different columns. The
+columns contain information from the survey results, and include respondent
+demographic data (ex. age, gender, income, region, product) as well as some 
+meta-descriptors of each respondent (e.g. persona, awareness). In addition, the
+dataset includes survey ratings (from 0-10) from the respondent on various 
+aspects of their mobile phone (ex. user friendly, fast, battery life, camera, et
+cetera), and four more columns that seem to be generated as a sort of subsequent
+analysis of the customer given their profile and the results of their survey.
+
+Some things to note about the dataset, besides the large amount of response data,
+and the numerous categories/columns it covers, is the fact that there are quite
+a lot of NA values included in the dataset as well. In exploring the dataset a 
+bit further, we can see that the NA values in a number of cells--1,908,499 to be
+exact, which, out of a total of (200,000 * 24) 4,800,000 cells, comes out to
+around 39.7604% of the total data values, quite a large proportion of the data!
+
+## Part 2:  Specific Questions {.tabset}
+
+
+### Q1: Respondent Variables {.tabset}
+
+#### Age Group
+
+```{r q1_age.group}
+u_cellphones <- cellphones[unique(cellphones$id)];
+u_total <- as.numeric(nrow(u_cellphones));
+
+# Age Group 1: Defined as at least 18 and under 35;
+a1_cellphones <- u_cellphones[Age >= 18 & Age < 35];
+a1_total <- as.numeric(nrow(a1_cellphones));
+a1_percent <- a1_total/u_total;
+a1_percent <- a1_percent * 100;
+
+# Age Group 2: Defined as at least 35 and under 50;
+a2_cellphones <- u_cellphones[Age >= 35 & Age < 50];
+a2_total <- as.numeric(nrow(a2_cellphones));
+a2_percent <- a2_total/u_total;
+a2_percent <- a2_percent * 100;
+
+# Age Group 3: Defined as at least 50 and under 65;
+a3_cellphones <- u_cellphones[Age >= 50 & Age < 65];
+a3_total <- as.numeric(nrow(a3_cellphones));
+a3_percent <- a3_total/u_total;
+a3_percent <- a3_percent * 100;
+
+# Age Group 4: Defined as at least 65;
+a4_cellphones <- u_cellphones[Age >= 65];
+a4_total <- as.numeric(nrow(a4_cellphones));
+a4_percent <- a4_total/u_total;
+a4_percent <- a4_percent * 100;
+
+age_groups <- data.frame(0, a1_percent, a2_percent, a3_percent, a4_percent);
+colnames(age_groups) <- c("<17 years old", "18-34 years old", "35-49 years old",
+    "50-64 years old", "65+ years old");
+
+q1_age_groups <- datatable(age_groups, rownames = FALSE, caption = "% 
+    respondents: ");
+q1_age_groups;
+```
+
+#### Gender
+
+```{r q1_gender}
+sxf_cellphones <- u_cellphones[Gender == "Female"];
+sxf_total <- as.numeric(nrow(sxf_cellphones));
+sxf_percent <- sxf_total/u_total;
+sxf_percent <- sxf_percent * 100;
+
+sxm_cellphones <- u_cellphones[Gender == "Male"];
+sxm_total <- as.numeric(nrow(sxm_cellphones));
+sxm_percent <- sxm_total/u_total;
+sxm_percent <- sxm_percent * 100;
+
+gender_groups <- data.frame(sxf_percent, sxm_percent);
+colnames(gender_groups) <- c("Female", "Male");
+
+q1_gender_groups <- datatable(gender_groups, rownames = FALSE, caption = "% 
+    respondents: ");
+q1_gender_groups;
+```
+
+#### Income Group
+
+```{r q1_income.group}
+# Income Group 1: Defined as under 50 thousand;
+i1_cellphones <- u_cellphones[Income < 50000];
+i1_total <- as.numeric(nrow(i1_cellphones));
+i1_percent <- i1_total/u_total;
+i1_percent <- i1_percent * 100;
+
+# Income Group 2: Defined as at least 50 thousand and under 75 thousand;
+i2_cellphones <- u_cellphones[Income >= 50000 & Income < 75000];
+i2_total <- as.numeric(nrow(i2_cellphones));
+i2_percent <- i2_total/u_total;
+i2_percent <- i2_percent * 100;
+
+# Income Group 3: Defined as at least 75 thousand and under 100 thousand;
+i3_cellphones <- u_cellphones[Income >= 75000 & Income < 100000];
+i3_total <- as.numeric(nrow(i3_cellphones));
+i3_percent <- i3_total/u_total;
+i3_percent <- i3_percent * 100;
+
+# Income Group 4: Defined as at least 100 thousand and under 150 thousand;
+i4_cellphones <- u_cellphones[Income >= 100000 & Income < 150000];
+i4_total <- as.numeric(nrow(i4_cellphones));
+i4_percent <- i4_total/u_total;
+i4_percent <- i4_percent * 100;
+
+# Income Group 5: Defined as at least 150 thousand;
+i5_cellphones <- u_cellphones[Income >= 150000];
+i5_total <- as.numeric(nrow(i5_cellphones));
+i5_percent <- i5_total/u_total;
+i5_percent <- i5_percent * 100;
+
+income_groups <- data.frame(i1_percent, i2_percent, i3_percent, i4_percent, 
+                            i5_percent);
+colnames(income_groups) <- c("<$50,000", "$50,000 - <$75,000", "$75,000 - 
+    <$100,000", "$100,000 - <$150,000", "$150,000+");
+
+q1_income_groups <- datatable(income_groups, rownames = FALSE, caption = "%
+    respondents: ");
+q1_income_groups;
+
+```
+
+#### Region
+ 
+```{r q1_region}
+r1_cellphones <- u_cellphones[Region == "Midwest"];
+r1_total <- as.numeric(nrow(r1_cellphones));
+r1_percent <- r1_total/u_total;
+r1_percent <- r1_percent * 100;
+
+r2_cellphones <- u_cellphones[Region == "Northeast"];
+r2_total <- as.numeric(nrow(r2_cellphones));
+r2_percent <- r2_total/u_total;
+r2_percent <- r2_percent * 100;
+
+r3_cellphones <- u_cellphones[Region == "South"];
+r3_total <- as.numeric(nrow(r3_cellphones));
+r3_percent <- r3_total/u_total;
+r3_percent <- r3_percent * 100;
+
+r4_cellphones <- u_cellphones[Region == "West"];
+r4_total <- as.numeric(nrow(r4_cellphones));
+r4_percent <- r4_total/u_total;
+r4_percent <- r4_percent * 100;
+
+region_groups <- data.frame(r1_percent, r2_percent, r3_percent, r4_percent);
+colnames(region_groups) <- c("Midwest Region", "Northeast Region", "South Region",
+    "West Region");
+
+q1_region_groups <- datatable(region_groups, rownames = FALSE, caption = "%
+    respondents: ");
+q1_region_groups;
+```
+
+#### Persona
+
+```{r q1_persona}
+p1_cellphones <- u_cellphones[Persona == "Ambivalent Adventurer"];
+p1_total <- as.numeric(nrow(p1_cellphones));
+p1_percent <- p1_total/u_total;
+p1_percent <- p1_percent * 100;
+
+p2_cellphones <- u_cellphones[Persona == "Consistent Compromiser"];
+p2_total <- as.numeric(nrow(p2_cellphones));
+p2_percent <- p2_total/u_total;
+p2_percent <- p2_percent * 100;
+
+p3_cellphones <- u_cellphones[Persona == "Materialistic Meditator"];
+p3_total <- as.numeric(nrow(p3_cellphones));
+p3_percent <- p3_total/u_total;
+p3_percent <- p3_percent * 100;
+
+p4_cellphones <- u_cellphones[Persona == "Outdoorsy Ombudsman"];
+p4_total <- as.numeric(nrow(p4_cellphones));
+p4_percent <- p4_total/u_total;
+p4_percent <- p4_percent * 100;
+
+p5_cellphones <- u_cellphones[Persona == "Precociously Preoccupied"];
+p5_total <- as.numeric(nrow(p5_cellphones));
+p5_percent <- p5_total/u_total;
+p5_percent <- p5_percent * 100;
+
+p6_cellphones <- u_cellphones[Persona == "Technological Triumphalist"];
+p6_total <- as.numeric(nrow(p6_cellphones));
+p6_percent <- p6_total/u_total;
+p6_percent <- p6_percent * 100;
+
+persona_groups <- data.frame(p1_percent, p2_percent, p3_percent, p4_percent,
+    p5_percent, p6_percent);
+colnames(persona_groups) <- c("Ambivalent Adventurer", "Consistent Compromiser",
+    "Materialistic Meditator", "Outdoorsy Ombudsman", "Precociously Preoccupied",
+    "Technological Triumphalist");
+
+q1_persona_groups <- datatable(persona_groups, rownames = FALSE, caption = "%
+ respondents: ");
+q1_persona_groups;
+```
+
+
+### Q2:  Segmented Outcomes {.tabset}
+
+#### Part A
+
+What are the top 5 products by Awareness rates in the Northeast?
+
+```{r q2_a}
+# print("All Mobile Phone Product Variants");
+# levels(as.factor(cellphones$Product));
+
+t5_NE_Aw <- cellphones[(Region == "Northeast" & Awareness == "1"), .N, by = 
+                             .(Awareness, Product)][order(-N)];
+
+top5_NE_Aw <- t5_NE_Aw$Product[1:5];
+print("Top 5 Products By Absolute Awareness Rates in the Northeast");
+top5_NE_Aw;
+
+# If we assume that we are able to take the question to mean, which products
+# have the top 5 awareness values in terms of absolute value, we can skip the long
+# rate derivation that would be required for each of the 20 product types otherwise.
+
+# All_Buttons_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "All Buttons" &
+#                                                top5_NE_Aw$Awareness == 1]);
+# All_Buttons_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "All Buttons" &
+#                                                top5_NE_Aw$Awareness == 0]);
+
+# All_Buttons_total <- All_Buttons_Aw1 + All_Buttons_Aw0;
+# All_Buttons_rate <- All_Buttons_Aw1/All_Buttons_total;
+                                  
+# App_Map_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "App Map" & 
+#                                            top5_NE_Aw$Awareness == 1]);
+# App_Map_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "App Map" & 
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# App_Map_total <- App_Map_Aw1 + App_Map_Aw0;
+# App_Map_rate <- App_Map_Aw1/App_Map_total;
+
+# Buzzdial_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Buzzdial" &
+#                                            top5_NE_Aw$Awareness == 1]);
+# Buzzdial_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Buzzdial" & 
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# Buzzdial_total <- Buzzdial_Aw1 + Buzzdial_Aw0;
+# Buzzdial_rate <- Buzzdial_Aw1/Buzzdial_total;
+    
+# Cellularity_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Cellularity" & 
+#                                            top5_NE_Aw$Awareness == 1]);
+# Cellularity_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Cellularity" & 
+#                                           top5_NE_Aw$Awareness == 0]);
+
+# Cellularity_total <- Cellularity_Aw1 + Cellularity_Aw0;
+# Cellularity_rate <- Cellularity_Aw1/Cellularity_total;
+    
+# Communic_Nation_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Communic 
+#                                           Nation" & top5_NE_Aw$Awareness == 1]);
+# Communic_Nation_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Communic 
+#                                            Nation" & top5_NE_Aw$Awareness == 0]);
+
+# Communic_Nation_total <- Communic_Nation_Aw1 + Communic_Nation_Aw0;
+# Communic_Nation_rate <- Communic_Nation_Aw1/Communic_Nation_total;
+    
+# Maybe_Mobile_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Maybe Mobile"
+#                                             & top5_NE_Aw$Awareness == 1]);
+# Maybe_Mobile_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Maybe Mobile" 
+#                                             & top5_NE_Aw$Awareness == 0]);
+
+# Maybe_Mobile_total <- Maybe_Mobile_Aw1 + Maybe_Mobile_Aw0;
+# Maybe_Mobile_rate <- Maybe_Mobile_Aw1/Maybe_Mobile_total;
+    
+# Mobile_Mayhem_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Mobile 
+#                                            Mayhem" & top5_NE_Aw$Awareness == 1]);
+# Mobile_Mayhem_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Mobile 
+#                                            Mayhem" & top5_NE_Aw$Awareness == 0]);
+
+# Mobile_Mayhem_total <- Mobile_Mayhem_Aw1 + Mobile_Mayhem_Aw0;
+# Mobile_Mayhem_rate <- Mobile_Mayhem_Aw1/Mobile_Mayhem_total;
+
+# MobilitEE_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "MobilitEE" & 
+#                                           top5_NE_Aw$Awareness == 1]);
+# MobilitEE_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "MobilitEE" & 
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# MobilitEE_total <- MobilitEE_Aw1 + MobilitEE_Aw0;
+# MobilitEE_rate <- MobilitEE_Aw1/MobilitEE_total;
+
+# Mobzilla_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Mobzilla" &
+#                                            top5_NE_Aw$Awareness == 1]);
+# Mobzilla_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Mobzilla" &
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# Mobzilla_total <- Mobzilla_Aw1 + Mobzilla_Aw0;
+# Mobzilla_rate <- Mobzilla_Aw1/Mobzilla_total;
+
+# Next_Text_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Next_Text" & 
+#                                            top5_NE_Aw$Awareness == 1]);
+# Next_Text_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Next_Text" & 
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# Next_Text_total <- Next_Text_Aw1 + Next_Text_Aw0;
+# Next_Text_rate <- Next_Text_Aw1/Next_Text_total;
+    
+# No_Buttons_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "No_Buttons" &
+#                                            top5_NE_Aw$Awareness == 1]);
+# No_Buttons_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "No_Buttons" & 
+#                                           top5_NE_Aw$Awareness == 0]);
+
+# No_Buttons_total <- No_Buttons_Aw1 + No_Buttons_Aw0;
+# No_Buttons_rate <- No_Buttons_Aw1/No_Buttons_total;
+    
+# Off_the_Hook_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Off_the_Hook"
+#                                             & top5_NE_Aw$Awareness == 1]);
+# Off_the_Hook_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Off_the_Hook" 
+#                                           & top5_NE_Aw$Awareness == 0]);
+
+# Off_the_Hook_total <- Off_the_Hook_Aw1 + Off_the_Hook_Aw0;
+# Off_the_Hook_rate <- Off_the_Hook_Aw1/Off_the_Hook_total;
+
+# Phonatics_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Phonatics" &
+#                                            top5_NE_Aw$Awareness == 1]);
+# Phonatics_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Phonatics" &
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# Phonatics_total <- Phonatics_Aw1 + Phonatics_Aw0;
+# Phonatics_rate <- Phonatics_Aw1/Phonatics_total;
+    
+# Phone_Zone_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Phone_Zone" &
+#                                            top5_NE_Aw$Awareness == 1]);
+# Phone_Zone_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Phone_Zone" & 
+#                                           top5_NE_Aw$Awareness == 0]);
+
+# Phone_Zone_total <- Phone_Zone_Aw1 + Phone_Zone_Aw0;
+# Phone_Zone_rate <- Phone_Zone_Aw1/Phone_Zone_total;
+    
+# Pocket_Dialz_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Pocket Dialz" 
+#                                            & top5_NE_Aw$Awareness == 1]);
+# Pocket_Dialz_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Pocket Dialz" 
+#                                            & top5_NE_Aw$Awareness == 0]);
+
+# Pocket_Dialz_total <- Pocket_Dialz_Aw1 + Pocket_Dialz_Aw0;
+# Pocket_Dialz_rate <- Pocket_Dialz_Aw1/Pocket_Dialz_total;
+    
+# Ring_Ring_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Ring Ring" &
+#                                            top5_NE_Aw$Awareness == 1]);
+# Ring_Ring_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Ring Ring" & 
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# Ring_Ring_total <- Ring_Ring_Aw1 + Ring_Ring_Aw0;
+# Ring_Ring_rate <- Ring_Ring_Aw1/Ring_Ring_total;
+    
+# Screenz_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Screenz" &
+#                                            top5_NE_Aw$Awareness == 1]);
+# Screenz_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Screenz" & 
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# Screenz_total <- Screenz_Aw1 + Screenz_Aw0;
+# Screenz_rate <- Screenz_Aw1/Screenz_total;
+    
+# Smartophonic_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Smartophonic" 
+#                                            & top5_NE_Aw$Awareness == 1]);
+# Smartophonic_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Smartophonic" 
+#                                            & top5_NE_Aw$Awareness == 0]);
+
+# Smartophonic_total <- Smartophonic_Aw1 + Smartophonic_Aw0;
+# Smartophonic_rate <- Smartophonic_Aw1/Smartophonic_total;
+    
+# Speed_Dialz_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Speed Dialz" &
+#                                            top5_NE_Aw$Awareness == 1]);
+# Speed_Dialz_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Speed Dialz" & 
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# Speed_Dialz_total <- Speed_Dialz_Aw1 + Speed_Dialz_Aw0;
+# Speed_Dialz_rate <- Speed_Dialz_Aw1/Speed_Dialz_total;
+
+# Triumphone_Aw1 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Triumphone" &
+#                                            top5_NE_Aw$Awareness == 1]);
+# Triumphone_Aw0 <- as.numeric(top5_NE_Aw$N[top5_NE_Aw$Product == "Triumphone" & 
+#                                            top5_NE_Aw$Awareness == 0]);
+
+# Triumphone_total <- Triumphone_Aw1 + Triumphone_Aw0;
+# Triumphone_rate <- Triumphone_Aw1/Triumphone_total;
+
+```
+
+#### Part B
+
+What are the top 5 products by Advocacy rates among females who earn at least $100,000?
+
+```{r q2_b}
+t5_fsx_Adv <- cellphones[(Gender == "Female" & Advocacy == "1" & Income > 99999),
+                         .N, by = .(Advocacy, Product)][order(-N)];
+
+top5_fsx_Adv <- t5_fsx_Adv$Product[1:5];
+print("Top 5 Products By Absolute Advocacy Rates among Females Earning At Least $100,00");
+top5_fsx_Adv;
+```
+### Q3:  Overall Brand Perceptions {.tabset}
+
+What are the top 5 brands by the overall average perception?
+
+```{r q3}
+noNA_cellphones <- na.omit(cellphones);
+noNA_cellphones <- noNA_cellphones[, c("id", "Age", "Gender", "Income", 
+    "Region", "Persona", "Awareness", "Consideration", "Consumption", 
+    "Satisfaction", "Advocacy") := NULL];
+
+# Positive Brand Perceptions: User Friendly, Fast, Battery Life, Camera, Sleek,
+# Stylish, Status Symbol, Good Screen Size (Columns 1:8)
+
+# Negative Brand Perceptions: Boring, Bulky, Fragile, Expensive (Columns 9:12)
+
+###--------------------------------------------------------------------------###
+
+All_Buttons_BP <- noNA_cellphones[Product == "All Buttons"];
+All_Buttons_BP <- All_Buttons_BP[, c("Product") := NULL];
+All_Buttons_BP_avg <- All_Buttons_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+All_Buttons_BP_avg <- All_Buttons_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+All_Buttons_BP_OAP <- All_Buttons_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+    
+App_Map_BP <- noNA_cellphones[Product == "App Map"];
+App_Map_BP <- App_Map_BP[, c("Product") := NULL];
+App_Maps_BP_avg <- App_Map_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+App_Maps_BP_avg <- App_Maps_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+App_Maps_BP_OAP <- App_Maps_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Buzzdial_BP <- noNA_cellphones[Product == "Buzzdial"];
+Buzzdial_BP <- Buzzdial_BP[, c("Product") := NULL];
+Buzzdial_BP_avg <- Buzzdial_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Buzzdial_BP_avg <- Buzzdial_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Buzzdial_BP_OAP <- Buzzdial_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Cellularity_BP <- noNA_cellphones[Product == "Cellularity"];
+Cellularity_BP <- Cellularity_BP[, c("Product") := NULL];
+Cellularity_BP_avg <- Cellularity_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Cellularity_BP_avg <- Cellularity_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Cellularity_BP_OAP <- Cellularity_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Communic_Nation_BP <- noNA_cellphones[Product == "Communic Nation"];
+Communic_Nation_BP <- Communic_Nation_BP[, c("Product") := NULL];
+Communic_Nation_BP_avg <- Communic_Nation_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Communic_Nation_BP_avg <- Communic_Nation_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Communic_Nation_BP_OAP <- Communic_Nation_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+    
+###--------------------------------------------------------------------------###
+
+Maybe_Mobile_BP <- noNA_cellphones[Product == "Maybe Mobile"];
+Maybe_Mobile_BP <- Maybe_Mobile_BP[, c("Product") := NULL];
+Maybe_Mobile_BP_avg <- Maybe_Mobile_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+    
+Maybe_Mobile_BP_avg <- Maybe_Mobile_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Maybe_Mobile_BP_OAP <- Maybe_Mobile_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Mobile_Mayhem_BP <- noNA_cellphones[Product == "Mobile Mayhem"];
+Mobile_Mayhem_BP <- Mobile_Mayhem_BP[, c("Product") := NULL];
+Mobile_Mayhem_BP_avg <- Mobile_Mayhem_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+    
+Mobile_Mayhem_BP_avg <- Mobile_Mayhem_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Mobile_Mayhem_BP_OAP <- Mobile_Mayhem_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+MobilitEE_BP <- noNA_cellphones[Product == "MobilitEE"];
+MobilitEE_BP <- MobilitEE_BP[, c("Product") := NULL];
+MobilitEE_BP_avg <- MobilitEE_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+MobilitEE_BP_avg <- MobilitEE_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+MobilitEE_BP_OAP <- MobilitEE_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+    
+###--------------------------------------------------------------------------###
+
+Mobzilla_BP <- noNA_cellphones[Product == "Mobzilla"];
+Mobzilla_BP <- Mobzilla_BP[, c("Product") := NULL];
+Mobzilla_BP_avg <- Mobzilla_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Mobzilla_BP_avg <- Mobzilla_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Mobzilla_BP_OAP <- Mobzilla_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+    
+###--------------------------------------------------------------------------###
+
+Next_Text_BP <-  noNA_cellphones[Product == "Next Text"];
+Next_Text_BP <- Next_Text_BP[, c("Product") := NULL];
+Next_Text_BP_avg <- Next_Text_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Next_Text_BP_avg <- Next_Text_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Next_Text_BP_OAP <- Next_Text_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+    
+###--------------------------------------------------------------------------###
+
+No_Buttons_BP <- noNA_cellphones[Product == "No Buttons"];
+No_Buttons_BP <- No_Buttons_BP[, c("Product") := NULL];
+No_Buttons_BP_avg <- No_Buttons_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+No_Buttons_BP_avg <- No_Buttons_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+No_Buttons_BP_OAP <- No_Buttons_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+    
+Off_The_Hook_BP <-  noNA_cellphones[Product == "Off the Hook"];
+Off_The_Hook_BP <- Off_The_Hook_BP[, c("Product") := NULL];
+Off_The_Hook_BP_avg <- Off_The_Hook_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Off_The_Hook_BP_avg <- Off_The_Hook_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Off_The_Hook_BP_OAP <- Off_The_Hook_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+    
+Phonatics_BP <-  noNA_cellphones[Product == "Phonatics"];
+Phonatics_BP <- Phonatics_BP[, c("Product") := NULL];
+Phonatics_BP_avg <- Phonatics_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Phonatics_BP_avg <- Phonatics_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Phonatics_BP_OAP <- Phonatics_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Phone_Zone_BP <- noNA_cellphones[Product == "Phone Zone"];
+Phone_Zone_BP <- Phone_Zone_BP[, c("Product") := NULL];
+Phone_Zone_BP_avg <- Phone_Zone_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Phone_Zone_BP_avg <- Phone_Zone_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Phone_Zone_BP_OAP <- Phone_Zone_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Pocket_Dialz_BP <-  noNA_cellphones[Product == "Pocket Dialz"];
+Pocket_Dialz_BP <- Pocket_Dialz_BP[, c("Product") := NULL];
+Pocket_Dialz_BP_avg <- Pocket_Dialz_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Pocket_Dialz_BP_avg <- Pocket_Dialz_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+    
+Pocket_Dialz_BP_OAP <- Pocket_Dialz_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Ring_Ring_BP <- noNA_cellphones[Product == "Ring Ring"];
+Ring_Ring_BP <- Ring_Ring_BP[, c("Product") := NULL];
+Ring_Ring_BP_avg <- Ring_Ring_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Ring_Ring_BP_avg <- Ring_Ring_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Ring_Ring_BP_OAP <- Ring_Ring_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Screenz_BP <-  noNA_cellphones[Product == "Screenz"];
+Screenz_BP <- Screenz_BP[, c("Product") := NULL];
+Screenz_BP_avg <- Screenz_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Screenz_BP_avg <- Screenz_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Screenz_BP_OAP <- Screenz_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Smartophonic_BP <- noNA_cellphones[Product == "Smartophonic"];
+Smartophonic_BP <- Smartophonic_BP[, c("Product") := NULL];
+Smartophonic_BP_avg <- Smartophonic_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Smartophonic_BP_avg <- Smartophonic_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Smartophonic_BP_OAP <- Smartophonic_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Speed_Dials_BP <- noNA_cellphones[Product == "Speed Dials"];
+Speed_Dials_BP <- Speed_Dials_BP[, c("Product") := NULL];
+Speed_Dials_BP_avg <- Speed_Dials_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Speed_Dials_BP_avg <- Speed_Dials_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = 10 - boring, bulky = 10 - bulky, fragile = 10 - fragile, expensive 
+    = 10 - expensive)];
+
+Speed_Dials_BP_OAP <- Speed_Dials_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+Triumphone_BP <- noNA_cellphones[Product == "Triumphone"];
+Triumphone_BP <- Triumphone_BP[, c("Product") := NULL];
+Triumphone_BP_avg <- Triumphone_BP[, .(user_friendly = 
+    mean(BP_User_Friendly_0_10), fast = mean(BP_Fast_0_10), 
+    battery_life = mean(BP_Battery_Life_0_10), camera = 
+    mean(BP_Camera_0_10), sleek = mean(BP_Sleek_0_10), 
+    stylish = mean(BP_Stylish_0_10), status_symbol =
+    mean(BP_Status_Symbol_0_10), good_screen_size = 
+    mean(BP_Good_Screen_Size_0_10), boring = 
+    mean(BP_Boring_0_10), bulky = mean(BP_Bulky_0_10), fragile = 
+    mean(BP_Fragile_0_10), expensive = mean(BP_Expensive_0_10))];
+
+Triumphone_BP_avg <- Triumphone_BP_avg[, .(user_friendly = user_friendly, fast =
+    fast, battery_life = battery_life, camera = camera, sleek = sleek, stylish =
+    stylish, status_symbol = status_symbol, good_screen_size = good_screen_size,
+    boring = (10 - boring), bulky = (10 - bulky), fragile = (10 - fragile), 
+    expensive = (10 - expensive))];
+
+Triumphone_BP_OAP <- Triumphone_BP_avg[, (OAP = (user_friendly + fast + 
+    battery_life + camera + sleek + stylish + status_symbol + good_screen_size +
+    boring + bulky + fragile + expensive))/12,];
+
+###--------------------------------------------------------------------------###
+
+product_OAPs <- data.table(All_Buttons_BP_OAP, App_Maps_BP_OAP, Buzzdial_BP_OAP, 
+    Cellularity_BP_OAP, Communic_Nation_BP_OAP, Maybe_Mobile_BP_OAP, 
+    Mobile_Mayhem_BP_OAP, MobilitEE_BP_OAP, Mobzilla_BP_OAP, Next_Text_BP_OAP, 
+    No_Buttons_BP_OAP, Off_The_Hook_BP_OAP, Phonatics_BP_OAP, Phone_Zone_BP_OAP,
+    Pocket_Dialz_BP_OAP, Ring_Ring_BP_OAP, Screenz_BP_OAP, Smartophonic_BP_OAP,
+    Speed_Dials_BP_OAP, Triumphone_BP_OAP);
+
+colnames(product_OAPs) <- c("All_Buttons", "App_Maps", "Buzzdial", "Cellularity",
+    "Communic_Nation", "Maybe_Mobile", "Mobile_Mayhem", "MobilitEE", "Mobzilla", 
+    "Next_Text", "No_Buttons", "Off_the_Hook", "Phonatics", "Phone_Zone", 
+    "Pocket_Dialz_BP_OAP", "Ring_Ring", "Screenz", "Smartophonic", "Speed_Dials",
+    "Triumphone");
+
+vert_OAPs <- melt(product_OAPs);
+vert_OAPs <- vert_OAPs[order(-value)];
+
+top_OAPs <- vert_OAPs[1:5];
+colnames(top_OAPs) <- c("Product", "Overall Avg. Perception");
+
+print("Top 5 Products By Overall Average Perceptions:");
+top_OAPs;
+```
+
+
+
+Which five products have the largest gap between the rate of consumption and the rate of awareness?
+
+```{r q4_a}
+cellphones <- fread("../Data/mobile phone survey data.csv", verbose = F);
+
+cons_awa_cells <- cellphones[, c("id", "Age", "Gender", "Income", "Region", 
+    "Persona", "BP_User_Friendly_0_10",  "BP_Fast_0_10",  "BP_Battery_Life_0_10", 
+    "BP_Camera_0_10", "BP_Sleek_0_10", "BP_Stylish_0_10", "BP_Status_Symbol_0_10", 
+    "BP_Good_Screen_Size_0_10", "BP_Boring_0_10", "BP_Bulky_0_10", 
+    "BP_Fragile_0_10", "BP_Expensive_0_10", "Consideration", "Satisfaction", 
+    "Advocacy") := NULL,];
+
+#consum_awa_phone <- consum_awa_cells[(Consumption == "1" | Awareness == "1"), .(.N), 
+#    by = .(Awareness, Consumption, Product)];
+
+cons_awa_phone <- cons_awa_cells[, .(cons_rate = 
+    (sum(na.omit(Consumption))/10000), awa_rate = (sum(Awareness)/10000)), by = Product];
+
+diff_cons_awa <- cons_awa_phone[, .(diff_cons_awa = abs(awa_rate - 
+    cons_rate)), by = Product][order(-diff_cons_awa)];
+
+top5_diff_cons_awa <- diff_cons_awa[1:5];
+colnames(top5_diff_cons_awa) <- c("Product", "Difference");
+
+print("Top 5 Products - Greatest Difference Between Awareness Rates and Consumption Rates");
+top5_diff_cons_awa;
+
+bp_top5_cons_awa <- c(top5_diff_cons_awa$Difference);
+bp_top5_cons_awa <- as.vector(bp_top5_cons_awa);
+
+barplot(height = bp_top5_cons_awa,
+main = "Top 5 Products - Greatest Difference Between Consumption Rates and Awareness Rates:",
+xlab = "Product Type",
+ylab = "Difference Value",
+names.arg = c("Screenz: 7.229675",  "Cellularity: 6.410208", "Next Text: 6.273914", "No Buttons: 6.233461", "Smartophonic: 6.103566"),
+col = rainbow(5),
+legend.text = c("Screenz: 7.229675",  "Cellularity: 6.410208", "Next Text: 6.273914", "No Buttons: 6.233461", "Smartophonic: 6.103566"));
+
+###--------------------------------------------------------------------------###
+
+
+###--------------------------------------------------------------------------###
+# Unnecessary Code # 
+###--------------------------------------------------------------------------###
+
+
+# All_Buttons_cons_awa <- cons_awa_phone[Product == "All Buttons"];
+# All_Buttons_Awa <- sum(All_Buttons_cons_awa$N[All_Buttons_cons_awa$Awareness == "1"]);
+
+#All_Buttons_Con_idx <- (All_Buttons_cons_awa[All_Buttons_cons_awa$Consumption == "1"]);
+#All_Buttons_Con <- as.numeric(All_Buttons_Con_idx$N);
+
+#All_Buttons_Diff <- as.numeric(All_Buttons_Awa - All_Buttons_Con);
+
+###--------------------------------------------------------------------------###
+
+#App_Map_cons_awa <- cons_awa_phone[Product == "App Map"];
+#App_Map_Awa <- sum(App_Map_cons_awa$N[App_Map_cons_awa$Awareness == "1"]);
+
+#App_Map_Con_idx <- (App_Map_cons_awa[App_Map_cons_awa$Consumption == "1"]);
+#App_Map_Con <- as.numeric(App_Map_Con_idx$N);
+
+#App_Map_Diff <- as.numeric(App_Map_Awa - App_Map_Con);
+
+###--------------------------------------------------------------------------###
+
+#Buzzdial_cons_awa <- cons_awa_phone[Product == "Buzzdial"];
+#Buzzdial_Awa <- sum(Buzzdial_cons_awa$N[Buzzdial_cons_awa$Awareness == "1"]);
+
+#Buzzdial_Con_idx <- (Buzzdial_cons_awa[Buzzdial_cons_awa$Consumption == "1"]);
+#Buzzdial_Con <- as.numeric(Buzzdial_Con_idx$N);
+
+#Buzzdial_Diff <- as.numeric(Buzzdial_Awa - Buzzdial_Con);
+
+###--------------------------------------------------------------------------###
+
+#Cellularity_cons_awa <- cons_awa_phone[Product == "Cellularity"];
+#Cellularity_Awa <- sum(Cellularity_cons_awa$N[Cellularity_cons_awa$Awareness == "1"]);
+
+#Cellularity_Con_idx <- (Cellularity_cons_awa[Cellularity_cons_awa$Consumption == "1"]);
+#Cellularity_Con <- as.numeric(Cellularity_Con_idx$N);
+
+#Cellularity_Diff <- as.numeric(Cellularity_Awa - Cellularity_Con);
+
+###--------------------------------------------------------------------------###
+
+#Communic_Nation_cons_awa <- cons_awa_phone[Product == "Communic Nation"];
+#Communic_Nation_Awa <- sum(Communic_Nation_cons_awa$N[Communic_Nation_cons_awa$Awareness == "1"]);
+
+#Communic_Nation_Con_idx <- (Communic_Nation_cons_awa[Communic_Nation_cons_awa$Consumption == "1"]);#
+#Communic_Nation_Con <- as.numeric(Communic_Nation_Con_idx$N);
+
+#Communic_Nation_Diff <- as.numeric(Communic_Nation_Awa - Communic_Nation_Con);
+
+###--------------------------------------------------------------------------###
+
+#Maybe_Mobile_cons_awa <- cons_awa_phone[Product == "Maybe Mobile"];
+#Maybe_Mobile_Awa <- sum(Maybe_Mobile_cons_awa$N[Maybe_Mobile_cons_awa$Awareness == "1"]);
+
+#Maybe_Mobile_Con_idx <- (Maybe_Mobile_cons_awa[Maybe_Mobile_cons_awa$Consumption == "1"]);
+#Maybe_Mobile_Con <- as.numeric(Maybe_Mobile_Con_idx$N);
+
+#Maybe_Mobile_Diff <- as.numeric(Maybe_Mobile_Awa - Maybe_Mobile_Con);
+
+###--------------------------------------------------------------------------###
+
+#Mobile_Mayhem_cons_awa <- cons_awa_phone[Product == "Mobile Mayhem"];
+#Mobile_Mayhem_Awa <- sum(Mobile_Mayhem_cons_awa$N[Mobile_Mayhem_cons_awa$Awareness == "1"]);
+
+#Mobile_Mayhem_Con_idx <- (Mobile_Mayhem_cons_awa[Mobile_Mayhem_cons_awa$Consumption == "1"]);
+#Mobile_Mayhem_Con <- as.numeric(Mobile_Mayhem_Con_idx$N);
+
+#Mobile_Mayhem_Diff <- as.numeric(Mobile_Mayhem_Awa - Mobile_Mayhem_Con);
+
+###--------------------------------------------------------------------------###
+
+#MobilitEE_cons_awa <- cons_awa_phone[Product == "MobilitEE"];
+#MobilitEE_Awa <- sum(MobilitEE_cons_awa$N[MobilitEE_cons_awa$Awareness == "1"]);
+
+#MobilitEE_Con_idx <- (MobilitEE_cons_awa[MobilitEE_cons_awa$Consumption == "1"])
+#MobilitEE_Con <- as.numeric(MobilitEE_Con_idx$N);
+
+#MobilitEE_Diff <- as.numeric(MobilitEE_Awa - MobilitEE_Con);
+
+###--------------------------------------------------------------------------###
+
+#Mobzilla_cons_awa <- cons_awa_phone[Product == "Mobzilla"];
+#Mobzilla_Awa <- sum(Mobzilla_cons_awa$N[Mobzilla_cons_awa$Awareness == "1"]);
+
+#Mobzilla_Con_idx <- (Mobzilla_cons_awa[Mobzilla_cons_awa$Consumption == "1"]);
+#Mobzilla_Con <- as.numeric(Mobzilla_Con_idx$N);
+
+#Mobzilla_Diff <- as.numeric(Mobzilla_Awa - Mobzilla_Con);
+
+###--------------------------------------------------------------------------###
+
+#Next_Text_cons_awa <- cons_awa_phone[Product == "Next Text"];
+#Next_Text_Awa <- sum(Next_Text_cons_awa$N[Next_Text_cons_awa$Awareness == "1"]);
+
+#Next_Text_Con_idx <- (Next_Text_cons_awa[Next_Text_cons_awa$Consumption == "1"]);
+#Next_Text_Con <- as.numeric(Next_Text_Con_idx$N);
+
+#Next_Text_Diff <- as.numeric(Next_Text_Awa - Next_Text_Con);
+
+###--------------------------------------------------------------------------###
+
+#No_Buttons_cons_awa <- cons_awa_phone[Product == "No Buttons"];
+#No_Buttons_Awa <- sum(No_Buttons_cons_awa$N[No_Buttons_cons_awa$Awareness == "1"]);
+
+#No_Buttons_Con_idx <- (No_Buttons_cons_awa[No_Buttons_cons_awa$Consumption == "1"]);
+#No_Buttons_Con <- as.numeric(No_Buttons_Con_idx$N);
+
+#No_Buttons_Diff <- as.numeric(No_Buttons_Awa - No_Buttons_Con);
+
+###--------------------------------------------------------------------------###
+
+#Off_The_Hook_cons_awa <- cons_awa_phone[Product == "Off the Hook"];
+#Off_The_Hook_Awa <- sum(Off_The_Hook_cons_awa$N[Off_The_Hook_cons_awa$Awareness == "1"]);
+
+#Off_The_Hook_Con_idx <- (Off_The_Hook_cons_awa[Off_The_Hook_cons_awa$Consumption == "1"]);
+#Off_The_Hook_Con <- as.numeric(Off_The_Hook_Con_idx$N);
+
+#Off_The_Hook_Diff <- as.numeric(Off_The_Hook_Awa - Off_The_Hook_Con);
+
+###--------------------------------------------------------------------------###
+
+#Phonatics_cons_awa <- cons_awa_phone[Product == "Phonatics"];
+#Phonatics_Awa <- sum(Phonatics_cons_awa$N[Phonatics_cons_awa$Awareness == "1"]);
+
+#Phonatics_Cons_idx <- (Phonatics_cons_awa[Phonatics_cons_awa$Consumption == "1"]);
+#Phonatics_Cons <- as.numeric(Phonatics_Cons_idx$N);
+
+#Phonatics_Diff <- as.numeric(Phonatics_Awa - Phonatics_Cons);
+
+###--------------------------------------------------------------------------###
+
+#Phone_Zone_cons_awa <- cons_awa_phone[Product == "Phone Zone"];
+#Phone_Zone_Awa <- sum(Phone_Zone_cons_awa$N[Phone_Zone_cons_awa$Awareness == "1"]);
+
+#Phone_Zone_Con_idx <- (Phone_Zone_cons_awa[Phone_Zone_cons_awa$Consumption == "1"]);
+#Phone_Zone_Con <- as.numeric(Phone_Zone_Con_idx$N);
+
+#Phone_Zone_Diff <- as.numeric(Phone_Zone_Awa - Phone_Zone_Con);
+
+###--------------------------------------------------------------------------###
+
+#Pocket_Dialz_cons_awa <- cons_awa_phone[Product == "Pocket Dialz"];
+#Pocket_Dialz_cons_awa <- cons_awa_phone[Product == "Pocket Dialz"];
+#Pocket_Dialz_Awa <- sum(Pocket_Dialz_cons_awa$N[Pocket_Dialz_cons_awa$Awareness == "1"]);
+
+#Pocket_Dialz_Con_idx <- (Pocket_Dialz_cons_awa[Pocket_Dialz_cons_awa$Consumption == "1"]);
+#Pocket_Dialz_Con <- as.numeric(Pocket_Dialz_Con_idx$N);
+
+#Pocket_Dialz_Diff <- as.numeric(Pocket_Dialz_Awa - Pocket_Dialz_Con);
+
+###--------------------------------------------------------------------------###
+
+#Ring_Ring_cons_awa <- cons_awa_phone[Product == "Ring Ring"];
+#Ring_Ring_Awa <- sum(Ring_Ring_cons_awa$N[Ring_Ring_cons_awa$Awareness == "1"]);
+
+#Ring_Ring_Con_idx <- (Ring_Ring_cons_awa[Ring_Ring_cons_awa$Consumption == "1"]);
+#Ring_Ring_Con <- as.numeric(Ring_Ring_Con_idx$N);
+
+#Ring_Ring_Diff <- as.numeric(Ring_Ring_Awa - Ring_Ring_Con);
+
+###--------------------------------------------------------------------------###
+
+#Screenz_cons_awa <- cons_awa_phone[Product == "Screenz"];
+#Screenz_Awa <- sum(Screenz_cons_awa$N[Screenz_cons_awa$Awareness == "1"]);
+
+#Screenz_Con_idx <- (Screenz_cons_awa[Screenz_cons_awa$Consumption == "1"]);
+#Screenz_Con <- as.numeric(Screenz_Con_idx$N);
+
+#Screenz_Diff <- as.numeric(Screenz_Awa - Screenz_Con);
+
+###--------------------------------------------------------------------------###
+
+#Smartophonic_cons_awa <- cons_awa_phone[Product == "Smartophonic"];
+#Smartophonic_Awa <- sum(Smartophonic_cons_awa$N[Smartophonic_cons_awa$Awareness == "1"]);
+
+#Smartophonic_Con_idx <- (Smartophonic_cons_awa[Smartophonic_cons_awa$Consumption == "1"]);
+#Smartophonic_Con <- as.numeric(Smartophonic_Con_idx$N);
+
+#Smartophonic_Diff <- as.numeric(Smartophonic_Awa - Smartophonic_Con);
+
+###--------------------------------------------------------------------------###
+
+#Speed_Dialz_cons_awa <- cons_awa_phone[Product == "Speed Dialz"];
+#Speed_Dialz_Awa <- sum(Speed_Dialz_cons_awa$N[Speed_Dialz_cons_awa$Awareness == "1"]);
+
+#Speed_Dialz_Con_idx <- (Speed_Dialz_cons_awa[Speed_Dialz_cons_awa$Consumption == "1"]);
+#Speed_Dialz_Con <- as.numeric(Speed_Dialz_Con_idx$N);
+
+#Speed_Dialz_Diff <- as.numeric(Communic_Nation_Awa - Speed_Dialz_Con);
+
+###--------------------------------------------------------------------------###
+
+#Triumphone_cons_awa <- cons_awa_phone[Product == "Triumphone"];
+#Triumphone_Awa <- sum(Triumphone_cons_awa$N[Triumphone_cons_awa$Awareness == "1"]);
+
+##Triumphone_Con_idx <- (Triumphone_cons_awa[Triumphone_cons_awa$Consumption == "1"]);
+#Triumphone_Con <- as.numeric(Triumphone_Con_idx$N);
+
+#Triumphone_Diff <- as.numeric(Triumphone_Awa - Triumphone_Con);
+
+###--------------------------------------------------------------------------###
+
+#product_diffs <- data.table(All_Buttons_Diff, App_Map_Diff, Buzzdial_Diff, 
+#    Cellularity_Diff, Communic_Nation_Diff, Maybe_Mobile_Diff, 
+#   Mobile_Mayhem_Diff, MobilitEE_Diff, Mobzilla_Diff, Next_Text_Diff, 
+#    No_Buttons_Diff, Off_The_Hook_Diff, Phonatics_Diff, Phone_Zone_Diff, 
+#  Pocket_Dialz_Diff, Ring_Ring_Diff, Screenz_Diff, Smartophonic_Diff, 
+#   Speed_Dialz_Diff, Triumphone_Diff);
+
+#product_diffs <- na.omit(product_diffs);
+
+#cons_awa_diffs <- melt(product_diffs);
+#vert_awa_diffs <- cons_awa_diffs[order(-value)];
+
+#top_awa_diffs <- vert_awa_diffs[1:5];
+#colnames(top_awa_diffs) <- c("Product", "Difference Between Rates of Consumption and Awareness");
+    
+#print("Top 5 Products By Greatest Consumption & Awareness Rate Difference:");
+#top_awa_diffs;
+
+###--------------------------------------------------------------------------###
+```
+
+#### Part B
+
+Which 5 products have the largest gap between the rate of Awareness and the average Satisfaction?
+
+```{r q4_b}
+cellphones <- fread("../Data/mobile phone survey data.csv", verbose = F);
+
+# Deduced that the dataset contains 20 unique types of cell phone product, and
+# there are a total of 200,000 survey responses corresponding to 10,000/Product
+
+phones_sat_awa <- cellphones[, c("id", "Age", "Gender", "Income", "Region", 
+    "Persona", "BP_User_Friendly_0_10",  "BP_Fast_0_10",  "BP_Battery_Life_0_10", 
+    "BP_Camera_0_10", "BP_Sleek_0_10", "BP_Stylish_0_10", "BP_Status_Symbol_0_10", 
+    "BP_Good_Screen_Size_0_10", "BP_Boring_0_10", "BP_Bulky_0_10", 
+    "BP_Fragile_0_10", "BP_Expensive_0_10", "Consideration", "Consumption", 
+    "Advocacy") := NULL,];
+
+vals_sat_awa <- phones_sat_awa[, .(awa_rate = (sum(Awareness)/10000), sat_max =
+    sum(na.omit(Satisfaction)), sat_ave = mean(na.omit(Satisfaction))), by = Product];
+
+rate_awa_phone <- vals_sat_awa[, .(awa_rate = awa_rate, sat_rate = 
+    sat_ave/sat_max), by = Product];
+
+diff_sat_awa <- rate_awa_phone[, .(diff = awa_rate - sat_rate), by = Product][order(-diff)];
+
+top5_diff_sat_awa <- diff_sat_awa[1:5];
+colnames(top5_diff_sat_awa) <- c("Product", "Difference");
+
+print("Top 5 Products - Greatest Difference Between Awareness Rates and Average Satisfaction:");
+top5_diff_sat_awa;
+
+bp_top5_sat_awa <- c(top5_diff_sat_awa$Difference);
+bp_top5_sat_awa <- as.vector(bp_top5_sat_awa);
+
+barplot(height = bp_top5_sat_awa,
+main = "Top 5 Products - Greatest Difference Between Awareness Rates and Average Satisfaction:",
+xlab = "Product Type",
+ylab = "Difference Value",
+names.arg = c("Maybe Mobile: 0.8549906",  "Next Text: 0.7938272", "Mobile Mayhem: 0.7874901", "App Map: 0.7321022", "Cellularity: 0.6510401"),
+col = rainbow(5),
+legend.text = c("Maybe Mobile: 0.8549906",  "Next Text: 0.7938272", "Mobile Mayhem: 0.7874901", "App Map: 0.7321022", "Cellularity: 0.6510401"))
+```
+
+
+### Q5: Aggregated Engagement {.tabset}
+
+#### Part A
+
+How much impact does respondent's overall trends in awareness have for that person's awareness with Buzzdial phones?
+
+```{r q5_a}
+cellphones <- fread("../Data/mobile phone survey data.csv", verbose = F);
+
+awa_eng_Buzzdial <- na.omit(cellphones[cellphones$Product == "Buzzdial"]);
+awa_eng_Buzzdial <- awa_eng_Buzzdial[, .(awa_eng_Buzzdial = sum(Awareness)), by = "id"];
+
+awa_agg_Buzzdial <- na.omit(cellphones[cellphones$Product != "Buzzdial"]);
+awa_agg_Buzzdial <- awa_agg_Buzzdial[, .(awa_agg_Buzzdial = sum(Awareness)), by = "id"];
+
+awa_merged_Buzzdial <- merge.data.table(awa_eng_Buzzdial, awa_agg_Buzzdial, by = "id");
+awa_agg_eng_Buzzdial <- merge.data.table(cellphones, awa_merged_Buzzdial, by = "id");
+
+awa_glm_Buzzdial <- glm(awa_eng_Buzzdial ~ Age + Gender + Income + Region +
+    Persona + awa_agg_Buzzdial, data = awa_agg_eng_Buzzdial);
+
+caret::varImp(awa_glm_Buzzdial);
+pscl::pR2(awa_glm_Buzzdial)["McFadden"];
+
+summary(awa_glm_Buzzdial);
+
+awa_split <- sample(1:nrow(awa_agg_eng_Buzzdial), 0.8*nrow(awa_agg_eng_Buzzdial));
+awa_train <- awa_agg_eng_Buzzdial[awa_split,];
+awa_test <- awa_agg_eng_Buzzdial[-awa_split,];
+
+awa_fit1 <- logistf(awa_eng_Buzzdial ~., data = awa_train, maxit = 200);
+summary(awa_fit1);
+```
+
+#### Part B
+
+How much impact does respondent's overall trends in satisfaction have for that person's satisfaction with Buzzdial phones?
+
+```{r q5_b}
+cellphones <- fread("../Data/mobile phone survey data.csv", verbose = F);
+
+sat_eng_Buzzdial <- na.omit(cellphones[cellphones$Product == "Buzzdial"]);
+sat_eng_Buzzdial <- sat_eng_Buzzdial[, .(sat_eng_Buzzdial = sum(Satisfaction)), by = id];
+
+sat_agg_Buzzdial <- na.omit(cellphones[cellphones$Product != "Buzzdial"]);
+sat_agg_Buzzdial <- sat_agg_Buzzdial[, .(sat_agg_Buzzdial = sum(Satisfaction)), by = id];
+
+sat_merged_Buzzdial <- merge.data.table(sat_eng_Buzzdial, sat_agg_Buzzdial, by = "id");
+sat_agg_eng_Buzzdial <- merge.data.table(cellphones, sat_merged_Buzzdial, by = "id");
+
+sat_lm_Buzzdial <- lm(sat_eng_Buzzdial ~ Age + Gender + Income + Region +
+    Persona + Product + sat_agg_Buzzdial, data = sat_agg_eng_Buzzdial);
+
+caret::varImp(sat_lm_Buzzdial);
+pscl::pR2(sat_lm_Buzzdial)["McFadden"];
+
+summary(sat_lm_Buzzdial);
+
+sat_split <- sample(1:nrow(sat_agg_eng_Buzzdial), 0.8*nrow(sat_agg_eng_Buzzdial));
+sat_train <- sat_agg_eng_Buzzdial[sat_split,];
+sat_test <- sat_agg_eng_Buzzdial[-sat_split,];
+
+sat_fit1 <- lm(sat_eng_Buzzdial ~., data = sat_train, maxit = 200);
+summary(sat_fit1);
+```
+
+
+
+## Part 3:  Reporting Engine {.tabset}
+
+This section of the work is available in the file ...
+
+## Part 4:  Opportunities {.tabset}
+
+### Q1
+
+How would you build on the reporting capabilities that you have created?  
+What would you design next?
+
+I would build upon the reporting capabilities that are created depending on the 
+feedback that I receive from the client and my supervisor on the work that I've
+done so far. Depending on their reaction, I would either work to supplement the
+existing work by creating clarifying tools, such as keys, or navigation guides/
+glossaries to make navigation and use of the tool much easier, or to make it 
+much easier or more clear to understand the information provided in the tool. If
+the information was deemed sufficiently clear, but the client/manager were more
+interested in going further or learning more about other parts of the data, I
+would instead focus my efforts on expanding the existing tools and adding more
+detail/parameter exploration to the tables and charts. I would also possibly add
+in sliders so that the bounds of the graph were adjustable.
+
+### Q2
+
+What are some opportunities to learn valuable information and inform strategic 
+decisions?  List a number of questions that you might explore.
+
+Some of the great opportunities which may provide valuable information and inform
+strategic decisions include the following questions:
+
+-What are the underlying trends behind the general population of users of each
+type of product? 
+
+-What does the profile of a typical user of each product type look like, in 
+ terms of the other variables (Age, Gender, Region, etc.)
+ 
+-How does each of these profiles appear to interact in terms of the others?
+    -Meaning, what are their overlapping interests and/or disinterests?
+    
+    -Are there any strong patterns or behavioral traits amongst any of the 
+     combinations of products or product users?
+     
+-What does the spread of user profile/product look like in terms of a global
+ mapping? What about for a graph across all age groups?
+ 
+-What does a typical household look like in terms of the particular profiles?
+
+### Q3
+
+How would you approach other decision-makers within the client's organization to
+assess their priorities and help them better utilize the available information?
+
+In order to ensure there is a cohesive agreement amongst the decision-makers from
+the client's organization and to assess their priorities, I would likely create
+a short form/survey that allows me to verify easily which sections of information
+they would like to see, which components they are most interested in, what, if
+anything, they specifically do not want to have included in the reporting tool,
+and what they would like to derive from the tool itself, most of all.
+
+### Q4
+
+**Video Submission:**  Make a 2-minute pitch to the client with a proposal for 
+the next phase of work.  Include in your request a budget, a time frame, and 
+staffing levels.  Explain why this proposal would be valuable for the client and
+worth the investment in your consulting services.  Please submit this answer as 
+a short video recording. You may use any video recording program you feel 
+comfortable with. The only requirements are that you are visible and audible in 
+the video.  You may also submit a file of slides if that is part of your pitch.
