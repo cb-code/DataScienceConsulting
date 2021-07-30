@@ -1,0 +1,1390 @@
+---
+title: "Individual Project 2"
+author: "Chloe Blanchard - chb2132"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+setwd("/Volumes/chb2132/IP2/");
+```
+
+```{r seed}
+set.seed(1984);
+```
+
+```{r libraries}
+library(DT);
+library(Hmisc);
+library(data.table);
+library(lubridate);
+```
+
+```{r constants}
+adherence_data <- if(file.exists("adherence.csv")){
+    "adherence.csv"
+}
+
+baseline_data <- if(file.exists("baseline measurements.csv")){
+    "baseline measurements.csv"
+}
+```
+
+```{r functions}
+rx_counter <- function(adherence){
+    for(i in 2:nrow(adherence)){
+        rx_max <- 0;
+        for (j in 1:(nrow(adherence)-1)){
+            if (adherence$rx_start[i] == adherence$rx_stop[j]){
+                rx_max <- adherence$rx_stop[j];
+            }
+        }
+    }
+    return(rx_max);
+}
+counter_add <- function(datatable){
+    for(i in 1:nrow(y1_adh)){
+        y1_adh$counter[i] <- sum(as.numeric(y1_adh$ace_inhibs[i]), 
+                                  as.numeric(y1_adh$beta_blocks[i]), 
+                                  as.numeric(y1_adh$statins[i]));
+    }
+return(y1_adh);
+}
+subsubset <- function(adh_data, adh_subset){
+    subsub_adh <- adh_data;
+    for(i in 1:nrow(subsub_adh)){ 
+      for(j in 1:nrow(adh_subset)){ 
+        if(subsub_adh[i] == adh_subset[j]){ 
+          subsub_adh <- subsub_adh[-i];
+        }
+      }
+    }
+  return(subsub_adh);
+}
+###--------------------------------------------------------------------------###
+# Function: Prof. David Shilane, Lecture 04, APAN S5902, Columbia University SPS
+###--------------------------------------------------------------------------###
+crossect.adh <- function(adh_data, timeframe, rx_start, rx_stop, 
+                               patient_id){
+    require(data.table)
+    setDT(adh_data)
+    setorderv(x = adh_data, cols = c(patient_id, rx_start))
+    cs.ad <- adh_data[get(rx_stop) > timeframe][, .SD[1], by = patient_id]
+    return(cs.ad);
+}
+round_numerics <- function(x, digits){
+###--------------------------------------------------------------------------###
+# Function: Prof. David Shilane, Lecture 04, APAN S5902, Columbia University SPS
+###--------------------------------------------------------------------------###
+  if (is.numeric(x)) {
+    x <- round(x = x, digits = digits)
+    }
+  return(x)
+}
+```
+
+```{r load_data}
+adherence <- fread(adherence_data);
+baseline <- fread(baseline_data);
+```
+
+```{r explore_data, eval = FALSE}
+dim(adherence)
+summary(adherence)
+colnames(adherence)
+
+str(adherence)
+head(adherence, 3)
+
+dim(baseline)
+summary(baseline)
+colnames(baseline)
+
+str(baseline)
+head(baseline, 3)
+```
+
+
+```{r clean_data}
+sum(is.na(adherence))
+sum(adherence[] == "NA")
+
+sum(is.na(baseline))
+sum(baseline[] == "NA")
+
+# testing to see prevalence of co-occurrence in terms of dual prescriptions for
+# the various possible iterations of ace inhibitors, beta blockers, and statins
+
+d0 <- length(which(adherence$ace == 0 & adherence$bb == 0 
+                   & adherence$statins == 0))
+print("Number of Prescriptions Not Ace Inhibitors, Beta Blockers, or statins:")
+print(d0)
+
+d1 <- length(which(adherence$ace == 1 & adherence$bb == 0 
+             & adherence$statins == 0))
+print("Number of Prescriptions for Ace Inhibitors Only:")
+print(d1)
+
+d2 <- length(which(adherence$ace == 1 & adherence$bb == 1 
+             & adherence$statins == 0))
+print("Number of Prescriptions for Ace Inhibitors and Beta Blockers Only:")
+print(d2)
+
+d3 <- length(which(adherence$ace == 1 & adherence$bb == 0 
+             & adherence$statins == 1))
+print("Number of Prescriptions for Ace Inhibitors and statins Only:")
+print(d3)
+
+d4 <- length(which(adherence$ace == 0 & adherence$bb == 1 
+             & adherence$statins == 0))
+print("Number of Prescriptions for Beta Blockers Only:")
+print(d4)
+
+d5 <- length(which(adherence$ace == 0 & adherence$bb == 1 
+             & adherence$statins == 1))
+print("Number of Prescriptions for Beta Blockers and statins Only:")
+print(d5)
+
+d6 <- length(which(adherence$ace == 0 & adherence$bb == 0 
+             & adherence$statins == 1))
+print("Number of Prescriptions for statins Only:")
+print(d6)
+
+d7 <- length(which(adherence$ace == 1 & adherence$bb == 1
+             & adherence$statins == 1))
+print("Number of Prescriptions Ace Inhibitors and Beta Blockers and statins:")
+print(d7)
+
+# check to ensure we've accounted for all of the possible iterations in dataset
+
+nrow(adherence) == sum(d0, d1, d2, d3, d4, d5, d6, d7)
+
+# From Professor Shilane, Lecture 04, APAN S5902: "Time interval assumptions: 
+# There can be no overlapping time intervals in separate rows."
+```
+
+# Instructions {.tabset}
+
+## Overview
+
+Your new client is a health insurance company.  After a lengthy review of their 
+business, the insurance company has decided to prioritize improvements in 
+medication adherence.  For our initial work, we will focus on patients with 
+heart disease and how well they take their medications.
+
+Your team has received some modest training from a physician.  Here are the 
+basic facts you need to know.  Heart disease is one of the most pervasive health
+problems, especially for older patients.  The initial diagnosis typically occurs
+too late.  Most patients only become aware that they have heart disease after 
+experiencing an acute episode.  This can be limited to moderate symptoms, which 
+might be treated by either medications or a light procedure.  In more severe 
+cases, the patient might suffer a major event such as a myocardial infarction 
+(heart attack) or need a significant surgical operation.  Whether minor or 
+major, these events often include a hospitalization.  After the initial 
+diagnosis, patients are typically prescribed a range of medications.  Three 
+primary therapies include ACE inhibitors, beta blockers, and statins.
+
+The insurance company has helpfully compiled data on a large number of patients.
+They have included a number of important clinical factors about their baseline 
+conditions.  Then, starting from the time of their initial diagnoses of heart 
+disease, the patients were tracked based upon which medications were filled at 
+the pharmacy.  The medication records are presented in the form of panel data.  
+A single patient's records are linked by a unique identifier.  The time 
+measurements represent the number of days since baseline.  Prescriptions are 
+typically filled for 30 or 90 days of medications.  For this study, you may 
+assume that the patients qualified for our study and reasonably could have been 
+expected to be prescribed all of the medicines we are tracking.
+
+In this project, you will develop an approach to working with the information.  
+The client company has provided a list of questions they would like to address.  
+In addition to building the report, our team would also like you to present 
+recommendations on how to improve upon the infrastructure.  We also want you to 
+identify opportunities for the client to make use of the information you're 
+working with in novel ways.
+
+This project is divided into 4 parts:
+
+* **Part 1:**  Summarizing the data.
+
+* **Part 2:**  Answering specific questions about medication adherence.
+
+* **Part 3:**  Generalizing and automating the reporting infrastructure for use 
+beyond the current version.
+
+* **Part 4:**  Identifying opportunities.
+
+Please click on the other tabs for additional information.
+
+## Part 1:  Summary {.tabset}
+
+How would you summarize the data?  For each table, write 2-4 sentences with 
+relevant information.  Briefly describe what is measured in the data and provide
+a summary of the information.  You can show a table or graphic, but keep things 
+short.
+
+This part of the report will be directed to your internal team at the consulting
+company.  It is intended to document the sources of information that were used 
+in the project.  It will also describe the data in less technical terms to team 
+members who are not data scientists.  If another member of the team joins the 
+project later, they will rely on your descriptions to gain familiarity with the 
+data.  To that end, we recommend providing some instructions that will help 
+other consultants use the information more effectively.
+
+Click on the tabs below for further instructions.
+
+### Baseline Information {.tabset}
+
+```{r baseline}
+dim(baseline);
+summary(baseline);
+str(baseline);
+head(baseline, 3);
+
+colnames(baseline) <- c("patient_id", "patient_age", "patient_sex", 
+                        "patient_region", "diabetes", "base_condition");
+levels(as.factor(baseline$patient_region));
+```
+The data in the baseline dataset contains the information on the patients that
+are included in the following adherence dataset. This table contains the
+information for each corresponding patient id (16 character alphanumeric code to
+represent the particular patient identifier), including the patient age, patient
+sex (one of two options: Male/Female), patient geographic region (one of four 
+options: Midwest/Northeast/South/West), whether or not the patient has diabetes
+(expressed as a boolean integer, with "0" being "no", and "1" being "yes"), and 
+a brief description of the patient's baseline medical condition/health. We've
+renamed the table columns here in order to provide greater clarification to the 
+user/reader in terms of the content that is provided within.
+
+### Adherence {.tabset}
+
+```{r Adherence}
+dim(adherence);
+summary(adherence);
+str(adherence);
+head(adherence, 3);
+
+colnames(adherence) <- c("patient_id", "rx_start", "rx_stop", "ace_inhibs", 
+                         "beta_blocks", "statins");
+colnames(adherence);
+```
+The information provided in the adherence dataset provides a greater insight
+into the prescription activity for the patients included in the baseline dataset
+and includes specifics as to the particular start and end time of each medical
+prescription, as well as the particular type of medication being prescribed at
+the time. The first column includes the 16 character alphanumeric patient
+identifier that we used to denote each specific patient in the baseline
+measurement table above, and the next two columns indicate the particular start
+and end dates of the patient's particular prescription for the medication (which
+are provided as day numbers--for example, the start date might be listed as day
+0 for one prescription, and the end date as day 30, which indicates a 30-day 
+prescription, or a month-long prescription). 
+
+The following columns are listed as
+booleans, which indicate whether or not the prescribed medication was an ACE
+Inhibitor, a Beta Blocker, or a statins. In this case, if the integer value of
+the particular column is listed as a "1" it means "yes", this is the type of 
+medication corresponding to this particular prescription. On the other hand, if 
+the column is listed as a "0", it means "no", this is not the type of medication 
+corresponding to that particular prescription. As was the case with the prior
+dataset, we've re-labeled the column names in the adherence table in order to
+improve readability for users/viewers.
+
+## Part 2:  Specific Questions {.tabset}
+
+In addition to your summary, our team has identified specific questions of 
+interest.  Please provide these answers in output that is easy to read (e.g. 
+tables).
+
+This part of the report will be directed to medical case management teams 
+throughout the client's company.  The idea is to give them the useful 
+information they need to act on the specific questions they posed.  Plan your 
+communication accordingly.
+
+
+**Notes**:  Using data.table, most of these calculations can be solved in a 
+moderate number of steps.  Many of the questions may require information from 
+multiple tables.  Use the **merge** function to combine tables as needed.  
+HTML-friendly tables can be constructed using the **datatable** function in the 
+**DT** package.
+
+These questions were carefully crafted based upon the client's needs.  It is 
+important to answer them based on what is stated.  To that end, please **read 
+each question closely** and answer it accordingly.
+
+The questions are listed in the tabs below.
+
+
+### Q1 {.tabset}
+
+What was the median length of followup?  What percentage of the patients had at 
+least 1 year of records?
+
+```{r q1}
+y1 <- 365.25;
+
+med_rx <- adherence[, .(rx_length = as.integer(max(get("rx_stop"), 
+                    na.rm = TRUE))), by = c("patient_id")];
+median_rx <- median(med_rx$rx_length);
+
+print("Median follow-up length for patients:");
+print(median_rx);
+
+y1_plus <- med_rx[med_rx$rx_length >= 365, .SD, ];
+perpat_y1 <- (nrow(y1_plus)/nrow(med_rx)) * 100;
+percent_y1 <- lapply(X = perpat_y1, FUN = "round_numerics",
+                      digits = 2);
+
+y1_patient_percentage <- data.frame(median_rx, percent_y1);
+colnames(y1_patient_percentage) <- c("Median Length of Follow-Up", 
+                  "Percent of Patients With A Follow Up 1 Year or Longer");
+
+q1 <- datatable(data = y1_patient_percentage, rownames = FALSE);
+
+print("Percentage of patients with follow-up for at least a year:");
+q1;
+```
+
+According to the below, it looks like the median length of follow-up is 453 days
+which spans 1 year and 88 days, on average. The percentage of patients with at
+least 1 year (365 days) of records is 0.54214, or around 54.21% of all patients.
+
+### Q2
+
+For patients with at least 1 year of follow-up, their **one-year adherence** to 
+a medication is the proportion of days in the first year after diagnosis during 
+which the medication was possessed.  For each medication, what was the average 
+one-year adherence for the population?  Use only the patients with at least 1 
+year of follow-up records.
+
+```{r q2}
+y1_adh <- merge.data.table(y1_plus, adherence, by = "patient_id");
+y1_adh <- y1_adh[rx_start < 366, .SD, ];
+
+y1_adh_ace <- y1_adh[y1_adh$ace_inhibs == 1, .SD, ];
+y1_adh_ace <- y1_adh_ace[, .(rx_length = as.integer(max(get("rx_stop"), 
+                    na.rm = TRUE))), by = c("patient_id")];
+
+y1_adh_ace$rx_length[y1_adh_ace$rx_length > 365] <- 365;
+
+avg_y1_days_ace <- mean(y1_adh_ace$rx_length);
+avg_y1_adh_ace <- (avg_y1_days_ace/365) * 100;
+
+print("Average One-Year Adherence For the Population for Ace Inhibitors:");
+print(avg_y1_adh_ace);
+
+y1_adh_bb <- y1_adh[y1_adh$beta_blocks == 1, .SD, ];
+y1_adh_bb <- y1_adh_bb[, .(rx_length = as.integer(max(get("rx_stop"), 
+                    na.rm = TRUE))), by = c("patient_id")];
+
+y1_adh_bb$rx_length[y1_adh_bb$rx_length > 365] <- 365;
+
+avg_y1_days_bb <- mean(y1_adh_bb$rx_length);
+avg_y1_adh_bb <- (avg_y1_days_bb/365) * 100;
+
+print("Average One-Year Adherence For the Population for Beta Blockers:");
+print(avg_y1_adh_bb);
+
+y1_adh_statins <- y1_adh[y1_adh$statins == 1, .SD, ];
+y1_adh_statins <- y1_adh_statins[, .(rx_length = as.integer(max(get("rx_stop"), 
+                    na.rm = TRUE))), by = c("patient_id")];
+
+y1_adh_statins$rx_length[y1_adh_statins$rx_length > 365] <- 365;
+
+avg_y1_days_statins <- mean(y1_adh_statins$rx_length);
+avg_y1_adh_statins <- (avg_y1_days_statins/365) * 100;
+
+print("Average One-Year Adherence For the Population for statins:");
+print(avg_y1_adh_statins);
+
+percent_ace <- lapply(X = avg_y1_adh_ace, FUN = "round_numerics",
+                      digits = 2);
+percent_bb <- lapply(X = avg_y1_adh_bb, FUN = "round_numerics",
+                      digits = 2);
+percent_stat <- lapply(X = avg_y1_adh_statins, FUN = "round_numerics",
+                      digits = 2);
+
+Average_One_Year_Adherence <- data.frame(percent_ace, percent_bb, percent_stat);
+colnames(Average_One_Year_Adherence) <- c("Ace Inhibitors", "Beta Blockers", 
+                                          "Statins");
+
+q2 <- datatable(data = Average_One_Year_Adherence, rownames = FALSE);
+q2;
+```
+
+### Q3
+
+How many medications are the patients taking?  For patients with at least one 
+year of follow-up, use their records during the first year after the initial 
+diagnosis.  Calculate the overall percentage distribution of the days that the 
+patients are taking 0, 1, 2, and all 3 medications.
+
+```{r q3}
+y1_adh <- merge.data.table(y1_plus, adherence, by = "patient_id");
+y1_adh <- y1_adh[rx_start < 366, .SD, ];
+
+# y1_adh_counts <- counter_add(y1_adh);
+# y1_adh_countz <- data.frame(y1_adh_counts, rx_counter = y1_adh_counted$);
+
+# knitting to HTML is too slow with current system errors, using compiled chunk
+# write.csv(y1_adh_countz, 'y1_adh_counts.csv', row.names = F);
+
+y1_adh_countz <- fread('y1_adh_counts.csv', stringsAsFactors = FALSE);
+
+y1_adh_counted <- y1_adh_countz[, c("rx_length", "rx_start", "ace_inhibs", 
+                   "beta_blocks", "statins") := NULL];
+
+y1_adh_0 <- y1_adh_counted[y1_adh_counted$counter == 0, .SD, ];
+y1_adh_0 <- y1_adh_0[ , .(rx_length = max(get("rx_stop"), na.rm = TRUE)), 
+                        by = c("patient_id")];
+y1_adh_0$rx_length[y1_adh_0$rx_length > 365] <- 365;
+
+y1_adh_1 <- y1_adh_counted[y1_adh_counted$counter == 1, .SD, ];
+y1_adh_1 <- y1_adh_1[ , .(rx_length = max(get("rx_stop"), na.rm = TRUE)), 
+                        by = c("patient_id")];
+y1_adh_1$rx_length[y1_adh_1$rx_length > 365] <- 365;
+
+y1_adh_2 <- y1_adh_counted[y1_adh_counted$counter == 2, .SD, ];
+y1_adh_2 <- y1_adh_2[ , .(rx_length = max(get("rx_stop"), na.rm = TRUE)), 
+                        by = c("patient_id")];
+y1_adh_2$rx_length[y1_adh_2$rx_length > 365] <- 365;
+
+y1_adh_3 <- y1_adh_counted[y1_adh_counted$counter == 3, .SD, ];
+y1_adh_3 <- y1_adh_3[ , .(rx_length = max(get("rx_stop"), na.rm = TRUE)), 
+                        by = c("patient_id")];
+y1_adh_3$rx_length[y1_adh_3$rx_length > 365] <- 365;
+
+avg_y1_days_0 <- mean(y1_adh_0$rx_length);
+avg_y1_adh_0 <- (avg_y1_days_0/365) * 100;
+avg_y1_adh_0 <- lapply(avg_y1_adh_0, FUN = "round_numerics", digits = 2);
+# avg_y1_adh_0 <- avg_y1_days_0 * 100;
+
+avg_y1_days_1 <- mean(y1_adh_1$rx_length);
+avg_y1_adh_1 <- (avg_y1_days_1/365) * 100;
+avg_y1_adh_1 <- lapply(avg_y1_adh_1, FUN = "round_numerics", digits = 2);
+# avg_y1_adh_1 <- avg_y1_days_1 * 100;
+
+avg_y1_days_2 <- mean(y1_adh_2$rx_length);
+avg_y1_adh_2 <- (avg_y1_days_2/365) * 100;
+avg_y1_adh_2 <- lapply(avg_y1_adh_2, FUN = "round_numerics", digits = 2);
+# avg_y1_adh_2 <- avg_y1_days_2 * 100;
+
+avg_y1_days_3 <- mean(y1_adh_3$rx_length);
+avg_y1_adh_3 <- (avg_y1_days_3/365) * 100;
+avg_y1_adh_3 <- lapply(avg_y1_adh_3, FUN = "round_numerics", digits = 2);
+
+print("Average One-Year Adherence For the Population for 0 Medications:");
+print(avg_y1_adh_0);
+
+print("Average One-Year Adherence For the Population for 1 Medications:");
+print(avg_y1_adh_1);
+
+print("Average One-Year Adherence For the Population for 2 Medications:");
+print(avg_y1_adh_2);
+
+print("Average One-Year Adherence For the Population for 3 Medications:");
+print(avg_y1_adh_3);
+
+y1_adhs <- data.frame(avg_y1_adh_0, avg_y1_adh_1, avg_y1_adh_2, avg_y1_adh_3)
+colnames(y1_adhs) <- c("0 Medications", "1 Medications", "2 Medications", 
+                  "3 Medications")
+
+q3 <- datatable(data = y1_adhs, rownames = FALSE);
+q3;
+```
+
+### Q4 {.tabset}
+
+What is the impact of age, sex, region, diabetes, and baseline condition on the 
+one-year adherence to each medication?  Use only the patients with at least 1 
+year of follow-up records.  Fit separate linear regression models for each 
+medicine.  Then briefly comment on the results.
+
+```{r one.year.adherence.model.dat}
+y1_adh_demog <- merge.data.table(y1_plus, adherence, by = "patient_id", 
+                                  all = TRUE);
+
+y1_adh_demog <- merge.data.table(y1_adh_demog, baseline, by = "patient_id", 
+                                  all = TRUE);
+
+y1_adh_demo <- y1_adh_demog[ , .(rx_start = rx_start, rx_stop = rx_stop,
+                                  ace_inhibs = ace_inhibs, beta_blocks = 
+                                  beta_blocks, statins = statins, patient_age
+                                  = patient_age, patient_sex = patient_sex,
+                                  diabetes = diabetes, base_condition = 
+                                  base_condition, rx_length = 
+                                  max(get("rx_stop"), na.rm = TRUE)), by = 
+                                  c("patient_id")];
+```
+
+#### ACE Inhibitors
+
+```{r q4_ace}
+y1_adh_dem_ace <- y1_adh_demo[y1_adh_demo$ace_inhibs == 1, .SD, ];
+
+y1_adh_dem_ace <- y1_adh_dem_ace[, c("ace_inhibs", "beta_blocks", 
+                                  "statins") := NULL]
+
+y1_adh_dem_ace <- y1_adh_dem_ace[rx_length > 364, .SD, ];
+y1_adh_dem_ace$rx_stop[y1_adh_dem_ace$rx_stop > 365] <- 365;
+
+y1_adh_dem_ace <- y1_adh_dem_ace[ , .(patient_age = patient_age, patient_sex =
+                                  patient_sex, diabetes = diabetes, 
+                                  base_condition = base_condition, rx_stop = 
+                                  max(get("rx_stop"), na.rm = TRUE)), by = 
+                                  c("patient_id")];
+
+y1_adh_dem_ace <- y1_adh_dem_ace[, .(patient_age = patient_age, patient_sex =
+                                  patient_sex, diabetes = diabetes, 
+                                  base_condition = base_condition, rx_length = 
+                                  max(get("rx_stop"), na.rm = TRUE)), by = 
+                                  "patient_id"];
+
+y1_adh_dem_ace <- unique(y1_adh_dem_ace);
+
+y1_adh_model_ace <- lm(rx_length ~ patient_age + patient_sex + diabetes + 
+                          base_condition, data = y1_adh_dem_ace);
+
+adherence_model_ace_inhibitors_lm <- summary(y1_adh_model_ace);
+
+print("Linear Regression Model for Ace Inhibitor Medication:");
+print(adherence_model_ace_inhibitors_lm);
+```
+A brief analysis of this 1-Year Linear Regression model for Ace Inhibitor 
+Medication--within the patient population with at least one-year of follow-up--
+shows a residual distribution with a median close to 0 (desirable due to close
+resemblance to Gaussian distribution), but with a significantly large negative
+minimum (less desirable, given the remainder of the distribution from Quartile 1
+up to the Max). The parameters for the "Patient Age" + "Base Condition: Moderate
+Symptoms or Light Procedure" and "Diabetes" are indicated to be incredibly 
+significant, and the parameter for "Patient Sex: Male" is also included as a
+parameter of the next-greatest significance. Lastly, the residual standard error
+of 24.31,which indicates the size of our prediction error for this training data,
+and our adjusted R-squared value is 0.004066, with a p-value < 2.2e-16, which, 
+at first glance, appears to be a fairly good sign in terms of our model viability.
+
+#### Beta Blockers
+
+```{r q4_bb}
+y1_adh_dem_bb <- y1_adh_demo[y1_adh_demo$beta_blocks == 1, .SD, ];
+
+y1_adh_dem_bb <- y1_adh_dem_bb[, c("ace_inhibs", "beta_blocks", 
+                                  "statins") := NULL]
+
+y1_adh_dem_bb <- y1_adh_dem_bb[rx_length > 364, .SD, ];
+y1_adh_dem_bb$rx_stop[y1_adh_dem_bb$rx_stop > 365] <- 365;
+
+y1_adh_dem_bb <- y1_adh_dem_bb[ , .(patient_age = patient_age, patient_sex =
+                                  patient_sex, diabetes = diabetes, 
+                                  base_condition = base_condition, rx_stop = 
+                                  max(get("rx_stop"), na.rm = TRUE)), by = 
+                                  c("patient_id")];
+
+y1_adh_dem_bb <- y1_adh_dem_bb[, .(patient_age = patient_age, patient_sex =
+                                  patient_sex, diabetes = diabetes, 
+                                  base_condition = base_condition, rx_length = 
+                                  max(get("rx_stop"), na.rm = TRUE)), by = 
+                                  "patient_id"];
+
+y1_adh_dem_bb <- unique(y1_adh_dem_bb);
+
+y1_adh_model_bb <- lm(rx_length ~ patient_age + patient_sex + diabetes + 
+                          base_condition, data = y1_adh_dem_bb);
+
+adherence_model_beta_blockers_lm <- summary(y1_adh_model_bb);
+
+print("Linear Regression Model for Beta Blocker Medication:");
+print(adherence_model_beta_blockers_lm);
+```
+A brief analysis of this 1-Year Linear Regression model for Ace Inhibitor 
+Medication--within the patient population with at least one-year of follow-up--
+shows a residual distribution with a median close to 0 (desirable due to close
+resemblance to Gaussian distribution), but with a significantly large negative
+minimum (less desirable, given the remainder of the distribution from Quartile 1
+up to the Max). The parameters for the "Patient Age" + "Base Condition: Moderate
+Symptoms or Light Procedure" are indicated to be incredibly significant, and the 
+parameter for "Patient Sex: Male", and "Diabetes" are also included as parameters
+of the next-greatest significance. Lastly, the residual standard error of 18.75,
+which indicates the size of our prediction error for this training data, and our 
+adjusted R-squared value is 0.00237, with a p-value < 5.549e-14, which, at first
+glance, appears to be a fairly good sign in terms of our model viability.
+
+#### statins
+
+```{r q4_statins}
+y1_adh_dem_statins <- y1_adh_demo[y1_adh_demo$statins == 1, .SD, ];
+
+y1_adh_dem_statins <- y1_adh_dem_statins[, c("ace_inhibs", "beta_blocks", 
+                                  "statins") := NULL]
+
+y1_adh_dem_statins <- y1_adh_dem_statins[rx_length > 364, .SD, ];
+y1_adh_dem_statins$rx_stop[y1_adh_dem_statins$rx_stop > 365] <- 365;
+
+y1_adh_dem_statins <- y1_adh_dem_statins[ , .(patient_age = patient_age, 
+                                  patient_sex = patient_sex, diabetes = 
+                                  diabetes, base_condition = base_condition, 
+                                  rx_stop = max(get("rx_stop"), na.rm = TRUE)), 
+                                  by = c("patient_id")];
+
+y1_adh_dem_statins <- y1_adh_dem_statins[, .(patient_age = patient_age, 
+                                  patient_sex = patient_sex, diabetes = 
+                                  diabetes, base_condition = base_condition, 
+                                  rx_length = max(get("rx_stop"), na.rm = 
+                                  TRUE)), by = "patient_id"];
+
+y1_adh_dem_statins <- unique(y1_adh_dem_statins);
+
+y1_adh_model_statins <- lm(rx_length ~ patient_age + patient_sex + diabetes + 
+                          base_condition, data = y1_adh_dem_statins);
+
+adherence_model_statins_lm <- summary(y1_adh_model_statins);
+
+print("Linear Regression Model for statins Medication:");
+print(adherence_model_statins_lm);
+```
+A brief analysis of this 1-Year Linear Regression model for Ace Inhibitor 
+Medication--within the patient population with at least one-year of follow-up--
+shows a residual distribution with a median close to 0 (desirable due to close
+resemblance to Gaussian distribution), but with a significantly large negative
+minimum (less desirable, given the remainder of the distribution from Quartile 1
+up to the Max). The parameters for the "Patient Age" + "Base Condition: Moderate
+Symptoms or Light Procedure" are indicated to be incredibly significant, and the 
+parameter for "Patient Sex: Male", and "Diabetes" are also included as parameters
+of the next-greatest significance. Lastly, the residual standard error of 11.46,
+which indicates the size of our prediction error for this training data, and our 
+adjusted R-squared value is 0.001317, with a p-value < 4.986e-08, which, at first
+glance, appears to be a fairly good sign in terms of our model viability.
+
+### Q5
+
+For each medicine, what percentage of the patients filled a prescription in the 
+first two weeks after their initial diagnoses?
+
+```{r q5}
+adh_2w <- adherence[rx_start < 15];
+
+total_ace <- adherence[ace_inhibs == 1];
+adh_2w_ace <- adh_2w[ace_inhibs == 1];
+
+total_ace_count <- length(unique(total_ace$patient_id));
+adh_2w_ace_count <- length(unique(adh_2w_ace$patient_id));
+
+percentage_ace <- (adh_2w_ace_count/total_ace_count) * 100;
+percentage_ace <- round_numerics(percentage_ace, 2);
+
+total_bb <- adherence[beta_blocks == 1];
+adh_2w_bb <- adh_2w[beta_blocks == 1];
+
+total_bb_count <- length(unique(total_bb$patient_id));
+adh_2w_bb_count <- length(unique(adh_2w_bb$patient_id));
+
+percentage_bb <- (adh_2w_bb_count/total_bb_count) * 100;
+percentage_bb <- round_numerics(percentage_bb, 2);
+
+total_statins <- adherence[statins == 1];
+adh_2w_statins <- adh_2w[statins == 1];
+
+total_statins_count <- length(unique(total_statins$patient_id));
+adh_2w_statins_count <- length(unique(adh_2w_statins$patient_id));
+
+percentage_statins <- (adh_2w_statins_count/total_statins_count) * 100;
+percentage_statins <- round_numerics(percentage_statins, 2);
+
+percents_2w <- data.frame(percentage_ace, percentage_bb, percentage_statins);
+colnames(percents_2w) <- c("Patients Taking Ace Inhibitors Within Initial Two 
+                           Weeks", "Patients Taking Beta Blockers Within First 
+                           Two Weeks", "Patients Taking Statins Within First Two
+                           Weeks");
+
+q5 <- datatable(percents_2w, rownames = FALSE);
+
+print("Percentage of Patients Taking Medication Within Initial Two Weeks:");
+q5;
+```
+
+### Q6 {.tabset}
+
+Now let's compare those who filled a prescription for a statins in the first two 
+weeks after diagnosis to those who did not.  Do these two groups have different 
+baseline covariates?  Compare the groups based on their ages.  Then compare the 
+distribution of baseline conditions in the two groups. For continuous variables,
+compare their means using a t-test.  For the categorical variables, compare
+their distributions using a chi-squared test.  
+
+#### Age
+
+```{r q6_age}
+adh_no_2w_statins <- adherence[statins != 1 | rx_start > 14, .SD, ];
+adh_no_2w_statins_demog <- merge.data.table(adh_no_2w_statins, baseline, all =
+                                              TRUE);
+
+adh_2w_statins_demog <- merge.data.table(adh_2w_statins, baseline, 
+                                               all = TRUE);
+
+adh_no_2w_statins_age <- adh_no_2w_statins_demog$patient_age;
+adh_2w_statins_age <- adh_2w_statins_demog$patient_age;
+
+print("Summary of Patient Age Distribution For Patients *WITH NO* Medication For 
+Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_no_2w_statins_age));
+
+print("Summary of Patient Age Distribution For Patients *WITH* Medication For 
+Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_2w_statins_age));
+```
+
+#### Baseline Conditions
+
+```{r q6_baseline.condition}
+adh_no_2w_statins_bc <- as.factor(adh_no_2w_statins_demog$base_condition);
+adh_2w_statins_bc <- as.factor(adh_2w_statins_demog$base_condition);
+
+print("Summary of Patient Base Condition For Patients *WITH NO* Medication For Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_no_2w_statins_bc));
+
+print("Summary of Patient Base Condition For Patients *WITH* Medication For Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_2w_statins_bc));
+
+no_statins_vect_bc <- as.vector(summary(adh_no_2w_statins_bc));
+statins_vect_bc <- as.vector(summary(adh_2w_statins_bc));
+
+chisq_bc <- chisq.test(no_statins_vect_bc, statins_vect_bc);
+
+print("Chi-Squared Test for Patient Sex For Patients *WITH* and *WITH NO* 
+      Medication for Statins Within Initial Two Weeks of Follow-Up:");
+chisq_bc;
+
+adh_no_2w_statins_sex <- as.factor(adh_no_2w_statins_demog$base_condition);
+adh_2w_statins_sex <- as.factor(adh_2w_statins_demog$base_condition);
+
+print("Summary of Patient Sex For Patients *WITH NO* Medication For Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_no_2w_statins_sex));
+
+print("Summary of Patient Sex For Patients *WITH* Medication For Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_2w_statins_sex));
+
+no_statins_vect_sex <- as.vector(summary(adh_no_2w_statins_sex));
+statins_vect_sex <- as.vector(summary(adh_2w_statins_sex));
+
+chisq_sex <- chisq.test(no_statins_vect_sex, statins_vect_sex);
+
+print("Chi-Squared Test for Patient Sex For Patients *WITH* and *WITH NO* Medication for Statins Within Initial Two Weeks of Follow-Up:");
+chisq_sex;
+
+adh_no_2w_statins_diab <- as.factor(adh_no_2w_statins_demog$diabetes);
+adh_2w_statins_diab <- as.factor(adh_2w_statins_demog$diabetes);
+
+levels(adh_no_2w_statins_diab) <- c("*NO* Diabetes", "*YES* [Has] Diabetes");
+levels(adh_2w_statins_diab) <- c("*NO* Diabetes", "*YES* [Has] Diabetes");
+  
+print("Summary of Diabetes Prevalence For Patients *WITH NO* Medication For Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_no_2w_statins_diab));
+
+print("Summary of Diabetes Prevalence For Patients *WITH* Medication For Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_2w_statins_diab));
+
+no_statins_vect_diab <- as.vector(summary(adh_no_2w_statins_diab));
+statins_vect_diab <- as.vector(summary(adh_2w_statins_diab));
+
+chisq_diab <- chisq.test(no_statins_vect_diab, statins_vect_diab);
+
+print("Chi-Squared Test for Diabetes Prevalence Between Patients *WITH* and *WITH NO* Medication for Statins Within Initial Two Weeks of Follow-Up:");
+chisq_diab;
+
+adh_no_2w_statins_geo <- as.factor(adh_no_2w_statins_demog$patient_region);
+adh_2w_statins_geo <- as.factor(adh_2w_statins_demog$patient_region);
+  
+print("Summary of Geographic Region For Patients *WITH NO* Medication For Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_no_2w_statins_geo));
+
+print("Summary of Geographic Region For Patients *WITH* Medication For Statins Within Initial Two Weeks of Follow-Up");
+print(summary(adh_2w_statins_geo));
+
+no_statins_vect_geo <- as.vector(summary(adh_no_2w_statins_geo));
+statins_vect_geo <- as.vector(summary(adh_2w_statins_geo));
+
+chisq_geo <- chisq.test(no_statins_vect_geo, statins_vect_geo);
+
+print("Chi-Squared Test for Geographic Region Between Patients *WITH* and *WITH NO* Medication for Statins Within Initial Two Weeks of Follow-Up:");
+chisq_geo;
+```
+
+### Q7 {.tabset}
+
+How do the variables of age, sex, region, diabetes, and baseline condition 
+impact the likelihood of initiating a medication within 14 days?  For each 
+medicine, fit a logistic regression model and comment on the results.
+
+```{r q7}
+# please see below for code for Q7
+```
+
+#### ACE Inhibitors
+
+```{r q7_ace}
+adh_no_2w_ace <- adherence[(ace_inhibs == 1) & (rx_start < 14), .SD, ];
+adh_no_2w_ace <- na.omit(adh_no_2w_ace);
+
+adh_no_2w_ace_demog <- merge.data.table(adh_no_2w_ace, baseline, all = TRUE);
+
+adh_no_2w_ace_demog[, c("rx_stop", "ace_inhibs", "beta_blocks", "statins") := 
+                      NULL];
+
+w2_lm_model_ace <- glm(rx_start ~ patient_age + patient_sex + diabetes + 
+                      base_condition, data = adh_no_2w_ace_demog);
+
+print("Linear Regression Modeling For Predicting Patient Use Of Ace Inhibitor Medication Within Initial Two Weeks of Follow-Up:");
+summary(w2_lm_model_ace);
+```
+A brief analysis of our Logistic Regression Forecast Model for the likelihood of 
+a patient starting a prescription that includes Ace Inhibitors within the initial
+2-Weeks of follow-up, we can see that the for Ace Inhibitor Medication--within 
+the patient population with at least one-year of follow-up--shows a residual 
+distribution with a median close to 0. We can say this is likely desirable, since
+a median nearing 0 is a good approximator mark for the desired Gaussian 
+distribution. There is a slightly larger/skewed distribution, up towards 
+the maximum values/upper, rightmost end of the data, which is less desirable. 
+Of the parameters provided, "Base Condition: Moderate Symptoms or Light Procedure" 
+is indicated to be most significant, with "Diabetes" in second-most significance. 
+Patient "Age" and "Sex: Male" are the third-most and fourth-most significant
+parameters for our logistic regression model, respectively. Lastly, the AIC given
+(representing Akaike’s Information Criteria) is 233606, 
+
+#### Beta Blockers
+
+```{r q7_bb}
+adh_no_2w_bb <- adherence[(beta_blocks == 1) & (rx_start < 14), .SD, ];
+adh_no_2w_bb <- na.omit(adh_no_2w_bb);
+
+adh_no_2w_bb_demog <- merge.data.table(adh_no_2w_bb, baseline, all = TRUE);
+
+adh_no_2w_bb_demog[, c("rx_stop", "ace_inhibs", "beta_blocks", 
+                          "statins") := NULL];
+
+w2_lm_model_bb <- glm(rx_start ~ patient_age + patient_sex + diabetes + 
+                      base_condition, data = adh_no_2w_bb_demog);
+
+print("Linear Regression Modeling For Predicting Patient Use Of Beta Blocker Medication Within Initial Two Weeks of Follow-Up:");
+summary(w2_lm_model_bb);
+```
+A brief analysis of our Logistic Regression Forecast Model for the likelihood of 
+a patient starting a prescription that includes Ace Inhibitors within the initial
+2-Weeks of follow-up, we can see that the for Ace Inhibitor Medication--within 
+the patient population with at least one-year of follow-up--shows a residual 
+distribution with a median close to 0. We can say this is likely desirable, since
+a median nearing 0 is a good approximator mark for the desired Gaussian 
+distribution. There is a slightly larger/skewed distribution, up towards 
+the maximum values/upper, rightmost end of the data, which is less desirable. 
+Of the parameters provided, "Base Condition: Moderate Symptoms or Light Procedure" 
+is indicated to be most significant, with "Diabetes" in second-most significance. 
+Patient "Age" and "Sex: Male" are the next-most significant parameters for our 
+logistic regression model, respectively. Lastly, the AIC given (representing 
+Akaike’s Information Criteria) is 252337, which we can compare to that for Ace
+Inhibitors, which the AIC for Beta Blockers is larger than,and to that for 
+Statins, which the AIC for Beta Blockers is 
+
+#### statins
+
+```{r q7_statins}
+adh_no_2w_statins <- adherence[(statins == 1) & (rx_start < 14), .SD, ];
+adh_no_2w_statins <- na.omit(adh_no_2w_statins);
+
+adh_no_2w_statins_demog <- merge.data.table(adh_no_2w_statins, baseline, all = 
+                            TRUE);
+
+adh_no_2w_statins_demog[, c("rx_stop", "ace_inhibs", "beta_blocks", 
+                            "statins") := NULL];
+
+w2_lm_model_statins <- glm(rx_start ~ patient_age + patient_sex + diabetes + 
+                      base_condition, data = adh_no_2w_statins_demog);
+
+print("Linear Regression Modeling For Predicting Patient Use Of Statins Medication Within Initial Two Weeks of Follow-Up:");
+summary(w2_lm_model_statins);
+```
+A brief analysis of our Logistic Regression Forecast Model for the likelihood of 
+a patient starting a prescription that includes Ace Inhibitors within the initial
+2-Weeks of follow-up, we can see that the for Ace Inhibitor Medication--within 
+the patient population with at least one-year of follow-up--shows a residual 
+distribution with a median close to 0. We can say this is likely desirable, since
+a median nearing 0 is a good approximator mark for the desired Gaussian 
+distribution. There is a slightly larger/skewed distribution, up towards 
+the maximum values/upper, rightmost end of the data, which is less desirable. 
+Of the parameters provided, "Base Condition: Moderate Symptoms or Light Procedure" 
+is indicated to be most significant, with "Diabetes" in second-most significance. 
+Patient "Age" and "Sex: Male" are the next-most significant parameters for our 
+logistic regression model, respectively. Lastly, the AIC given (representing 
+Akaike’s Information Criteria) for Ace Inhibitors is 233606, which is less than
+the AIC for Beta Blockers, 252337, which in turn, is less than the AIC for 
+Statins, which is provided as 294268. AIC is best evaluated in a relative sense,
+so we might deduce that the Alpha Inhibitor Model is the more parsimonious of
+the two, whereas the Statin Model, being the highest AIC value, is the least.
+
+### Q8 {.tabset}
+
+For those who did fill their prescriptions within 2 weeks, how long does it 
+typically take to fill that first prescription after the initial diagnosis? For
+each medicine, provide the mean, median, and standard deviation in units of days.
+
+```{r q8}
+# please see below for the code for Q8, thanks
+```
+
+#### ACE Inhibitors
+
+```{r q8_ace}
+adh_fill_ace <- adherence[(ace_inhibs == 1) & (rx_start < 14), .SD, ];
+adh_fill_ace <- adh_fill_ace[, .(rx_fill = max(get("rx_stop"), na.rm = TRUE)), by = "patient_id"];
+
+print("Prescription Fill Time Statistics for Patients With Follow-Up Within The Initial Two Weeks, For Ace Inhibitor Medication:");
+summary(adh_fill_ace$rx_fill);
+```
+
+
+#### Beta Blockers
+
+```{r q8_bb}
+adh_fill_bb <- adherence[(beta_blocks == 1) & (rx_start < 14), .SD, ];
+adh_fill_bb <- adh_fill_bb[, .(rx_fill = max(get("rx_stop"), na.rm = TRUE)), by = "patient_id"];
+
+print("Prescription Fill Time Statistics for Patients With Follow-Up Within The Initial Two Weeks, For Beta Blocker Medication:");
+summary(adh_fill_bb$rx_fill);
+```
+
+
+#### statins
+
+```{r q8_statins}
+adh_fill_statins <- adherence[(statins == 1) & (rx_start < 14), .SD, ];
+adh_fill_statins <- adh_fill_statins[, .(rx_fill = max(get("rx_stop"), na.rm = TRUE)), by = "patient_id"];
+
+print("Prescription Fill Time Statistics for Patients With Follow-Up Within The Initial Two Weeks, For Statins Medication:");
+summary(adh_fill_statins$rx_fill);
+```
+
+### Q9 {.tabset}
+
+How does filling a prescription in the first two weeks impact adherence?  If we 
+want to see that a medicine is working, we need to start the observation after 
+the patient has had a chance to fill the prescription.  To answer this question,
+we will follow a number of steps:
+
+1.  Identify which patients filled a prescription in the first two weeks.
+
+2.  Then, for each patient with at least 379 days of followup, measure the 1 yr
+adherence rate (see Q2) **starting at two weeks after the initial diagnosis**. 
+This interval will begin at day 14 and last for 365 days.
+
+3.  Fit a linear regression model of this one-year adherence including the 
+baseline covariates (age, sex, region, diabetes, baseline condition) and an 
+indicator of whether this patient filled a prescription for the medicine in the 
+first two weeks.
+
+Perform this analysis for each medicine and comment on the results.
+
+```{r q9}
+adh_fill_2w <- adherence[rx_start < 14, .SD, ];
+adh_fill_2w_id <- unique(adh_fill_2w$patient_id);
+adh_fill_2w_sub <- adherence[adherence$patient_id %in% adh_fill_2w_id];
+
+adh_fill_2w_sub_ace <- adh_fill_2w_sub[adh_fill_2w_sub$ace_inhibs == 1];
+adh_fill_2w_sub_ace <- unique(adh_fill_2w_sub_ace$patient_id);
+
+adh_fill_2w_sub_bb <- adh_fill_2w_sub[adh_fill_2w_sub$beta_blocks == 1];
+adh_fill_2w_sub_bb <- unique(adh_fill_2w_sub_bb$patient_id);
+
+adh_fill_2w_sub_statins <- adh_fill_2w_sub[adh_fill_2w_sub$statins == 1];
+adh_fill_2w_sub_statins <- unique(adh_fill_2w_sub_statins$patient_id);
+
+adh_fill_1y <- adherence[rx_stop > 378, .SD, ];
+adh_fill_1y_id <- unique(adh_fill_1y$patient_id);
+adh_fill_1y_sub <- adherence[adherence$patient_id %in% adh_fill_1y_id];
+```
+
+#### ACE Inhibitors
+
+```{r q9_ace}
+adh_fill_1y_ace <- adh_fill_1y_sub[adh_fill_1y_sub$ace_inhibs == 1, .SD, ];
+
+adh_fill_1y_ace <- adh_fill_1y_ace[, .(rx_start = rx_start, rx_max = 
+                    as.integer(max(get("rx_stop"), na.rm = TRUE))), by = 
+                    c("patient_id")];
+
+adh_fill_1y_ace <- adh_fill_1y_ace[, .(rx_min = min(get("rx_start"), na.rm = 
+                    TRUE), rx_max = rx_max), by = c("patient_id")];
+
+adh_fill_1y_ace$rx_max[adh_fill_1y_ace$rx_max > 379] <- 379;
+adh_fill_1y_ace$rx_min[adh_fill_1y_ace$rx_min < 14] <- 14;
+
+adh_full_1y_ace <- adh_fill_1y_ace[, .(rx_length = as.integer(rx_max - rx_min)),
+                    by = c("patient_id")];
+adh_full_1y_ace <- unique(adh_full_1y_ace);
+
+avg_off_y1_days_ace <- mean(adh_full_1y_ace$rx_length);
+avg_off_y1_ace <- (avg_off_y1_days_ace/365) * 100;
+
+percent_y1_ace <- lapply(X = avg_off_y1_ace, FUN = "round_numerics",
+                      digits = 2);
+
+print("Average One-Year Patient Adherence Post-Initial Diagnosis Period For Ace Inhibitors Medication:");
+print(percent_y1_ace);
+
+adh_off_y1_base_ace <- merge.data.table(adh_full_1y_ace, baseline, 
+                          by = "patient_id");
+
+adh_off_y1_base_ace$w2_fill <- adh_off_y1_base_ace[, 
+                          .(adh_off_y1_base_ace$patient_id %in%
+                          adh_fill_2w_sub_ace)];
+
+adh_off_y1_model_ace <- lm(rx_length ~ patient_age + patient_sex + diabetes + 
+                          base_condition + w2_fill, data = adh_off_y1_base_ace);
+
+summary(adh_off_y1_model_ace);
+```
+A brief analysis of this 1-Year Linear Regression model for Ace Inhibitors
+Medication--within the patient population with at least one-year of follow-up--
+shows a residual distribution with a median of 27.95--which is somewhat off from
+our desired Gaussian Distribution form (placing that optimal median value at 0),
+but with a significantly large negative minimum (less desirable, given the 
+remainder of the distribution the Max down to the Minimum value of -1413.82. The 
+parameters for the "Patient Age" + "Diabetes" + "Base Condition: Moderate
+Symptoms or Light Procedure are indicated to be incredibly significant, and the 
+parameter for "Patient Sex: Male" is included as a parameter of the next-
+greatest significance. Lastly, the residual standard error of 84.49, which 
+indicates the size of our prediction error for this training data, and our 
+adjusted R-squared value is 0.02025, which is fairly low--a good sign--and with 
+a p-value < 2.2e-16, which, at first glance, appears to be a fairly good sign in 
+terms of our model viability.
+
+#### Beta Blockers
+
+```{r q9_bb}
+adh_fill_1y_bb <- adh_fill_1y_sub[adh_fill_1y_sub$beta_blocks == 1, .SD, ];
+
+adh_fill_1y_bb <- adh_fill_1y_bb[, .(rx_start = rx_start, rx_max = 
+                    as.integer(max(get("rx_stop"), na.rm = TRUE))), by = 
+                    c("patient_id")];
+
+adh_fill_1y_bb <- adh_fill_1y_bb[, .(rx_min = min(get("rx_start"), na.rm = 
+                    TRUE), rx_max = rx_max), by = c("patient_id")];
+
+adh_fill_1y_bb$rx_max[adh_fill_1y_bb$rx_max > 379] <- 379;
+adh_fill_1y_bb$rx_min[adh_fill_1y_bb$rx_min < 14] <- 14;
+
+adh_full_1y_bb <- adh_fill_1y_bb[, .(rx_length = as.integer(rx_max - rx_min)),
+                    by = c("patient_id")];
+adh_full_1y_bb <- unique(adh_full_1y_bb);
+
+avg_off_y1_days_bb <- mean(adh_full_1y_bb$rx_length);
+avg_off_y1_bb <- (avg_off_y1_days_bb/365) * 100;
+
+percent_y1_bb <- lapply(X = avg_off_y1_bb, FUN = "round_numerics",
+                      digits = 2);
+
+print("Average One-Year Patient Adherence Post-Initial Diagnosis Period For Beta Blockers Medication:");
+print(percent_y1_bb);
+
+adh_off_y1_base_bb <- merge.data.table(adh_full_1y_bb, baseline, 
+                          by = "patient_id");
+
+adh_off_y1_base_bb$w2_fill <- adh_off_y1_base_bb[, 
+                          .(adh_off_y1_base_bb$patient_id %in%
+                          adh_fill_2w_sub_bb)];
+
+adh_off_y1_model_bb <- lm(rx_length ~ patient_age + patient_sex + diabetes + 
+                          base_condition + w2_fill, data = adh_off_y1_base_bb);
+
+summary(adh_off_y1_model_bb);
+```
+A brief analysis of this 1-Year Linear Regression model for Beta Blockers
+Medication--within the patient population with at least one-year of follow-up--
+shows a residual distribution with a median of 23.41--which is somewhat off from
+our desired Gaussian Distribution form (placing that optimal median value at 0),
+but with a significantly large negative minimum (less desirable, given the 
+remainder of the distribution the Max down to the Minimum value of -1595.28 The 
+parameters for the "Patient Age" "Patient Sex: Male" + "Diabetes" + "Base 
+Condition: Moderate Symptoms or Light Procedure are all indicated to be 
+incredibly significant. Lastly, the residual standard error of 73.96, which 
+indicates the size of our prediction error for Lastly, the g data, and our 
+adjusted R-squared value is 0.01997, which is fairly low--a good sign--and with 
+a p-value < 2.2e-16, which, at first glance, appears to be a fairly good sign in
+terms of our model viability.
+
+#### statins
+
+```{r q9_statins}
+adh_fill_1y_statins <- adh_fill_1y_sub[adh_fill_1y_sub$statins == 1, .SD, ];
+
+adh_fill_1y_statins <- adh_fill_1y_statins[, .(rx_start = rx_start, rx_max = 
+                    as.integer(max(get("rx_stop"), na.rm = TRUE))), by = 
+                    c("patient_id")];
+
+adh_fill_1y_statins <- adh_fill_1y_statins[, .(rx_min = min(get("rx_start"), 
+                    na.rm = TRUE), rx_max = rx_max), by = c("patient_id")];
+
+adh_fill_1y_statins$rx_max[adh_fill_1y_statins$rx_max > 379] <- 379;
+adh_fill_1y_statins$rx_min[adh_fill_1y_statins$rx_min < 14] <- 14;
+
+adh_full_1y_statins <- adh_fill_1y_statins[, .(rx_length = as.integer(rx_max - 
+                    rx_min)), by = c("patient_id")];
+adh_full_1y_statins <- unique(adh_full_1y_statins);
+
+avg_off_y1_days_statins <- mean(adh_full_1y_statins$rx_length);
+avg_off_y1_statins <- (avg_off_y1_days_statins/365) * 100;
+
+percent_y1_statins <- lapply(X = avg_off_y1_statins, FUN = "round_numerics",
+                      digits = 2);
+
+print("Average One-Year Patient Adherence Post-Initial Diagnosis Period For Statins Medication:");
+print(percent_y1_statins);
+
+adh_off_y1_base_statins <- merge.data.table(adh_full_1y_statins, baseline, 
+                          by = "patient_id");
+
+adh_off_y1_base_statins$w2_fill <- adh_off_y1_base_statins[, 
+                          .(adh_off_y1_base_statins$patient_id %in%
+                          adh_fill_2w_sub_statins)];
+
+adh_off_y1_model_statins <- lm(rx_length ~ patient_age + patient_sex + diabetes + 
+                          base_condition + w2_fill, data = adh_off_y1_base_statins);
+
+summary(adh_off_y1_model_statins);
+```
+A brief analysis of this 1-Year Linear Regression model for Statins 
+Medication--within the patient population with at least one-year of follow-up--
+shows a residual distribution with a median of 11.63--which is a bit off from
+our desired Gaussian Distribution form (placing that optimal median value at 0),
+but with a significantly large negative minimum (less desirable, given the 
+remainder of the distribution the Max down to the Minimum value of -901.26. The 
+parameters for the "Patient Age" + "Diabetes" + "Base Condition: Moderate
+Symptoms or Light Procedure are indicated to be incredibly significant, and the 
+parameter for "Patient Sex: Male" is also included as a parameter of the next-
+greatest significance. Lastly, the residual standard error of 40.56, which 
+indicates the size of our prediction error for this training data, and our 
+adjusted R-squared value is 0.01324, which is fairly low--a good sign--and with 
+a p-value < 2.2e-16, which, at first glance, appears to be a fairly good sign in
+terms of our model viability.
+
+```{r q9 Data Table}
+Average_1Year_Adherence_Post_IP <- data.frame(percent_y1_ace, percent_y1_bb, percent_y1_statins);
+colnames(Average_1Year_Adherence_Post_IP) <- c("Average 1-Year Adherence Post-Initial Period for Ace Inhibitors", "Average 1-Year Adherence Post-Initial Period for Beta Blockers", "Average 1-Year Adherence Post-Initial Period for Statins"); 
+
+q9 <- datatable(data = Average_1Year_Adherence_Post_IP, rownames = FALSE);
+q9;
+```
+
+### Q10 {.tabset}
+
+Once a patient starts a medication, how long do they continuously have a filled 
+prescription?  For each patient who filled a medication, start with the first 
+filled prescription and count the duration of days until a gap occurs or 
+follow-up ends.  Then provide the mean, median, and standard deviation for these
+durations.  Do this separately for each medicine.
+
+```{r q10}
+# rolling joins for time series data table functions
+filling_rx <- adherence[, .(ace_inhibs = ace_inhibs, beta_blocks = beta_blocks, 
+                    statins = statins, rx_length = as.integer(max(get("rx_stop"), 
+                    na.rm = TRUE))), by = c("patient_id")];
+```
+
+#### ACE Inhibitors
+
+```{r q10_ace}
+ace_max <- filling_rx[filling_rx$ace_inhibs == "1"];
+
+ace_mean <- mean(ace_max$rx_length);
+ace_mean_pct <- lapply(X = ace_mean, FUN = "round_numerics", digits = 2);
+
+ace_med <- median(ace_max$rx_length);
+ace_med_pct <- lapply(X = ace_med, FUN = "round_numerics", digits = 2);
+
+ace_stdev <- sd(ace_max$rx_length);
+ace_stdev_pct <- lapply(X = ace_stdev, FUN = "round_numerics", digits = 2);
+```
+
+#### Beta Blockers
+```{r q10_bb}
+bb_max <- filling_rx[filling_rx$beta_blocks == "1"];
+
+bb_mean <- mean(bb_max$rx_length);
+bb_mean_pct <- lapply(X = bb_mean, FUN = "round_numerics", digits = 2);
+
+bb_med <- median(bb_max$rx_length);
+bb_med_pct <- lapply(X = bb_med, FUN = "round_numerics", digits = 2);
+
+bb_stdev <- sd(bb_max$rx_length);
+bb_stdev_pct <- lapply(X = bb_stdev, FUN = "round_numerics", digits = 2);
+```
+
+#### statins
+```{r q10_statins}
+statins_max <- filling_rx[filling_rx$statins == "1"];
+
+statins_mean <- mean(statins_max$rx_length);
+statins_mean_pct <- lapply(X = statins_mean, FUN = "round_numerics", digits = 2);
+
+statins_med <- median(statins_max$rx_length);
+statins_med_pct <- lapply(X = statins_med, FUN = "round_numerics", digits = 2);
+
+statins_stdev <- sd(statins_max$rx_length);
+statins_stdev_pct <- lapply(X = statins_stdev, FUN = "round_numerics", digits = 2);
+```
+
+```{r q10_fill_table}
+patient_fills <- data.frame(ace_mean_pct, ace_med_pct, ace_stdev_pct, bb_mean_pct, bb_med_pct,
+                  bb_stdev_pct, statins_mean_pct, statins_med_pct, statins_stdev_pct);
+
+colnames(patient_fills) <- c("Median Fill Length: Ace Inhibitors", "Average Fill Length: Ace Inhibitors", "Std. Deviation of Fill Length: Ace Inhibitors", "Median Fill Length: Beta Blockers", "Average Fill Length: Beta Blockers", "Std. Deviation of Fill Length: Beta Blockers", "Average Fill Length: Statins", "Median Fill Length: Statins", "Std. Deviation of Fill Length: Statins");
+
+q10 <- datatable(data = patient_fills, rownames = FALSE);
+
+print("Fill Length Mean, Median, and Standard Deviation: Ace Inhibitors, Beta Bockers, and Statins Medication");
+q10;
+```
+
+## Part 3:  Generalization {.tabset}
+
+This part of the report will be directed internally to your team's engagement 
+manager.  The idea is to present these approaches to your team.  The work will 
+then be conveyed to the client's technical team and middle managers who are 
+working closely with you on the project.  Plan your communication accordingly.
+
+
+### Q1 
+
+Did you see any problems with the data set?  If so, whom would you report them 
+to, and what would you do to address them?  What would be different about the 
+next version of the data?
+
+With regards to this particular data, the issues that I was able to identify
+were only issues that had to do with the column ID's themselves and how they
+could be better labeled, which I took care of doing during the initial data 
+cleaning setup. In this case, I'd still be sure to check as per the below in
+order to ensure there was consensus and approval with any changes that I made to
+the data labels/column names.
+
+If I did spot any problems with the dataset, I would be sure to make sure to talk
+to any other teammates at first to gather as much certainty/information about
+the dataset and the suspected errors/issues with my dataset/derived data, before
+escalating anything. If it seemed as if the issues that I'd noticed were indeed
+correct and generating a significant issue, I would then be sure to gather the
+documentation that properly explained and demonstrated the issue in the dataset,
+as well as as much information that I could on the origins/root cause of the
+various problems, and theoretical or actualized consequences of the errors. I'd
+be sure to present all of this information to my direct superior in the
+organization, who I believe would be the team engagement manager, but could be 
+another coworker.
+
+I would do my best to make sure the process that was taken to address the issues 
+in the dataset first included a careful and complete logging of the issues, so
+that everything that was changed as a result was fully logged and accounted for.
+
+### Q2
+
+If the organization wants to monitor this kind of information over time, what 
+would they need to provide, and at what frequency?
+
+If this is information that the organization desires to monitor over time, they
+would need to be able to have their datasets updated each day, with the patient
+Rx information so that if any patient received a new prescription for the above
+three medications or any other medication, the information for start date, end
+date, and flag for any of the applicable three medications would be properly 
+input into the dataset. For the patient background information, depending on the
+policy decision that the organization/data team has made, would be either taken
+as current most-updated information for all patient sex and patient region, with
+patient age increasing by 1 upon the date of birth of each patient. If the data
+is to reflect initial patient data instead, then the patient region, at least,
+would remain the first value that it was listed as. Otherwise, I would be sure 
+to pull periodically or after any new information is input as to the patient's
+profile.
+
+### Q3
+
+How would you build on the reporting capabilities that you have created?  What 
+would you design next?
+
+Building on the reporting capabilities that have been established here would mean
+potentially furthering the predictive modeling that was lightly touched upon in
+the prior questions, with a spark application that has a web interface for use
+with H2O. This was incredibly powerful and useful to me in the Kaggle contest we
+had in a prior course, and would be suitable to use in such a situation, for a 
+really deep analysis of patient information and profile and their corresponding 
+adherence probabilities and data for the three medications. Exploring various
+adherence factors and really building up the modeling and predictive functions
+and parameters would be useful not only from a data science perspective, but for
+the client and the insurance company as well.
+
+## Part 4:  Opportunities {.tabset}
+
+This part of the report will be directed externally to your client's senior 
+leadership.  Your work will help to determine the future direction of the 
+project and the company's contract with this client.  Plan your communication 
+accordingly.
+
+### Q1
+
+What are some opportunities to learn valuable information and inform strategic 
+decisions?  List a number of questions that you might explore.
+
+A number of questions to continue to explore would be:
+
+1. Where did the patient pick up this particular instance of the prescription?
+   (I.e. creating a pharmacy id tag that hashed the pharmacy value, which was 
+   provided for each medication instance in the data table as well)
+2. What was the total number of medications taken by the patient, including the
+   three listed medications, and any other non-listed medications?
+3. What was the form of the medication? How the patient ingest/uptake this Rx?
+4. What was the patient's personal experience/opinion of each instance of Rx?
+5. Did the patient undergo any surgery/operations during this time period?
+6. What was the patient's insurance status for each Rx? (I.e. paid out of pocket,
+   company plan, dependent on another individual's insurance plan, et cetera.)
+
+### Q2
+
+What kind of interventions would you build to help improve medication adherence? 
+Which populations would you work with?  How would you help them?
+
+I think the kind of interventions that could be constructed with the dataset
+provided would be the ones that flag patients who are simply not picking up 
+medication/getting prescriptions refilled/prescribed for them within certain
+time blocks (i.e. 2 weeks, 1 year). These patients would be flagged in both of
+the datasets and then used in predictive models so that the system could ideally 
+begin to make it clear when a patient was at risk or propensity to drop off proper
+adherence within a particular timeframe. Then either their insurance rates could
+be raised preemptively, or warnings/reminders could be sent out to the patient as
+as means of combating the likelihood of that patient from dropping off of their
+adherence/Rx plan.
+
+I'd work with the populations listed as being more at risk in various different
+situations, for all of the different combinations of medications (listed and not),
+as well as the ones who have the highest listed rates of dropping out of their
+plans/off of adherence. The patients with conditions for major heart attacks or
+conditions are also clearly priorities in this situation.
+
+### Q3
+
+How would you approach other decision-makers within the organization to assess 
+their priorities and help them better utilize the available information?
+
+I would approach other decision-makers within the organization in order to be 
+sure of their priorities and see how they are able to utilize the current 
+and provided information by reaching out first to my team and team-leader, and 
+developing a means by which the data/data-science team could communicate its 
+company-wide goals, roles, and abilities. Then, I'd send the correspondence so
+they have a good idea of what our team is and what we do, first and foremost. If
+they respond positively, I would then ask them some questions about their work
+and goals as a team, and then go into more detailed, more specific questions
+regarding their work with data and information provided in these datasets in
+particular, to see if there is any way that our team is able to provide assistance
+to theirs in any way, shape or form, (i.e. if there is any calculation or 
+information being pulled on patients currently that could be accelerated/
+streamlined by use of the information that we as a data team are able to provide).
+
+### Q4
+
+**Video Submission**:  Make a 2-minute pitch to the client with a proposal for 
+the next phase of work.  Include in your request a budget, a time frame, and 
+staffing levels.  Explain why this proposal would be valuable for the client and
+worth the investment in your consulting services.  Please submit this answer as 
+a short video recording. You may use any video recording program you feel 
+comfortable with. The only requirements are that you are visible and audible in 
+the video.  You may also submit a file of slides if that is part of your pitch.
