@@ -1,0 +1,826 @@
+---
+title: "Data Science Consulting:  Midterm Team Project -- Part 1"
+author: "Group A"
+date: "11/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+set.seed(72)
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE,
+	comment = "",
+	tidy.opts = list(width.cutoff = 55)
+)
+```
+
+```{r libraries, include=FALSE}
+library(data.table)
+library(DT)
+library(caret)
+library(rpart)
+library(randomForest)
+library(class)
+library(caret)
+library(xgboost)
+library(nnet)
+library(dplyr)
+library(nnet)
+library(glmnet)
+library(e1071)
+library(gbm)
+```
+
+```{r source_files, include=FALSE}
+
+```
+
+```{r functions, include=FALSE}
+# Iteration functions
+
+# Basic iteration functions
+model.iteration <- function(mod = mod, model.names = model.names){
+  model.list = vector("list", length(sample.list))
+  running.time = vector("double", length(sample.list))
+  misclassification.rate = vector("double", length(sample.list))
+  
+  for (i in 1:length(sample.list)){
+    set.seed(123)
+    start = Sys.time()
+    model.list[[i]] = mod(dat = sample.list[[i]])
+    end = Sys.time()
+    running.time[i] = as.numeric(difftime(time1 = end, time2 = start, units = "secs"))
+    pred = predict(model.list[[i]], newdata = test, type = "class")
+    misclassification.rate[i] = (1 - mean(test$label == pred))*100
+  }
+  
+  names(model.list) = model.names
+  result = list(model.list = model.list, running.time = running.time, misclassification.rate = misclassification.rate)
+  return(result)
+}
+
+# Iteration function for knn
+model.iteration.knn <- function(mod, model.names){
+  model.list = vector("list", length(sample.list))
+  running.time = vector("double", length(sample.list))
+  misclassification.rate = vector("double", length(sample.list))
+  
+  for (i in 1:length(sample.list)){
+    set.seed(123)
+    start = Sys.time()
+    model.list[[i]] = mod(dat = sample.list[[i]])
+    end = Sys.time()
+    running.time[i] = as.numeric(difftime(time1 = end, time2 = start, units = "secs"))
+    misclassification.rate[i] = (1 - mean(test$label == model.list[[i]]))*100
+  }
+  
+  names(model.list) = model.names
+  result = list(model.list = model.list, running.time = running.time, misclassification.rate = misclassification.rate)
+  return(result)
+}
+
+# Iteration function for Lasso
+model.iteration.lasso <- function(mod = mod, model.names = model.names){
+  model.list = vector("list", length(sample.list))
+  running.time = vector("double", length(sample.list))
+  misclassification.rate = vector("double", length(sample.list))
+  
+  lambda = 0.0008285075
+  test.X = as.matrix(test[,2:50])
+  
+  for (i in 1:length(sample.list)){
+    set.seed(123)
+    start = Sys.time()
+    model.list[[i]] = mod(dat = sample.list[[i]])
+    end = Sys.time()
+    running.time[i] = as.numeric(difftime(time1 = end, time2 = start, units = "secs"))
+    pred = predict(model.list[[i]], s = lambda, newx = test.X, type = "class")
+    misclassification.rate[i] = (1 - mean(test$label == pred))*100
+  }
+  
+  names(model.list) = model.names
+  result = list(model.list = model.list, running.time = running.time, misclassification.rate = misclassification.rate)
+  return(result)
+}
+
+# Iteration function for GBM
+model.iteration.gbm <- function(mod = mod, model.names = model.names){
+  model.list = vector("list", length(sample.list))
+  running.time = vector("double", length(sample.list))
+  misclassification.rate = vector("double", length(sample.list))
+  
+  for (i in 1:length(sample.list)){
+    set.seed(123)
+    start = Sys.time()
+    model.list[[i]] = mod(dat = sample.list[[i]])
+    end = Sys.time()
+    running.time[i] = as.numeric(difftime(time1 = end, time2 = start, units = "secs"))
+    pred = predict(model.list[[i]], newdata = test, type = "response",n.trees = 100)
+    labels = colnames(pred)[apply(pred, 1, which.max)]
+    misclassification.rate[i] = (1 - mean(test$label == labels))*100
+  }
+  
+  names(model.list) = model.names
+  result = list(model.list = model.list, running.time = running.time, misclassification.rate = misclassification.rate)
+  return(result)
+}
+
+# Iteration function for xgboost
+model.iteration.xgboost <- function(mod, model.names){
+  model.list = vector("list", length(sample.list))
+  running.time = vector("double", length(sample.list))
+  misclassification.rate = vector("double", length(sample.list))
+  
+  for (i in 1:length(sample.list)){
+    set.seed(123)
+    start = Sys.time()
+    model.list[[i]] = mod(dat = sample.list[[i]])
+    end = Sys.time()
+    running.time[i] = as.numeric(difftime(time1 = end, time2 = start, units = "secs"))
+    test_xgboost = test
+    test_variables = as.matrix(test_xgboost[,-1])
+    levels(test_xgboost$label) = c(0,1,2,3,4,5,6,7,8,9)
+    test_label = as.matrix(test_xgboost[,"label"])
+    test_matrix = xgb.DMatrix(data = test_variables, label = test_label)
+    
+    pred = predict(model.list[[i]],newdata = test_matrix)
+    test_prediction = matrix(pred, nrow = 10,
+                             ncol = length(pred)/10) %>%
+      t() %>%
+      data.frame() %>%
+      mutate(label = as.numeric(test_label) +1,
+         max_prob = max.col(., "last"))
+       
+    misclassification.rate[i] = (1 - mean(test_prediction$max_prob == test_prediction$label))*100
+  }
+  
+  names(model.list) = model.names
+  result = list(model.list = model.list, running.time = running.time, misclassification.rate = misclassification.rate)
+  return(result)
+}
+
+# Iteration function for nnet
+model.iteration.nnet <- function(mod, model.names){
+  model.list = vector("list", length(sample.list))
+  running.time = vector("double", length(sample.list))
+  misclassification.rate = vector("double", length(sample.list))
+  
+  for (i in 1:length(sample.list)){
+    set.seed(123)
+    start = Sys.time()
+    model.list[[i]] = mod(dat = sample.list[[i]])
+    end = Sys.time()
+    running.time[i] = as.numeric(difftime(time1 = end, time2 = start, units = "secs"))
+    pred = predict(model.list[[i]], newdata = test, type = 'class')
+    misclassification.rate[i] = (1 - mean(test$label == pred))*100
+  }
+  
+  names(model.list) = model.names
+  result = list(model.list = model.list, running.time = running.time, misclassification.rate = misclassification.rate)
+  return(result)
+}
+
+# Scoring Function
+scoreboard <- function(mod = mod, running.time = running.time, misclassification.rate = misclassification.rate){
+  scoreboard = data.table(Model = gsub('.{2}$', '', names(mod)),
+                          Sample.Size = sample.size,
+                          Data = sample.list.names,
+                          A = sample.size/60000*100, # sample size proportion
+                          B = running.time, # running time score
+                          C = misclassification.rate # misclassification rate
+                          )
+  scoreboard[, Points := 0.15*A + 0.1*B + 0.75*C]
+  return(scoreboard)
+}
+
+# Scoring Summary Function
+scoring.summary <- function(scoring = scoring){
+  scoring = scoring[, lapply(X = .SD, FUN = function(x){mean(x)}), .SDcols = c("Sample.Size", "A", "B", "C", "Points"), keyby = "Model"]
+  return(scoring)
+}
+```
+
+```{r constants, include=FALSE}
+sample.size = c(1000, 1000, 1000, 2000, 2000, 2000, 4000, 4000, 4000)
+sample.list.names <- c("sample_1000_1", "sample_1000_2", "sample_1000_3", "sample_2000_1", "sample_2000_2", "sample_2000_3", "sample_4000_1", "sample_4000_2", "sample_4000_3")
+model.list <- c("mod_1000_1", "mod_1000_2", "mod_1000_3", "mod_2000_1", "mod_2000_2", "mod_2000_3", "mod_4000_1", "mod_4000_2", "mod_4000_3")
+```
+
+```{r load_data, include=FALSE}
+train <- fread(input = "../data/MNIST-fashion training set-49.csv")
+test <- fread(input = "../data/MNIST-fashion testing set-49.csv")
+```
+
+```{r clean_data, include=FALSE}
+train$label <- factor(train$label)
+test$label <- factor(test$label)
+```
+
+```{r generate_samples, include=FALSE}
+set.seed(1984)
+
+#Sample Generation for Size #1 (N = 1000)
+sample_1000_1 <- train[sample(nrow(train), 1000),]
+sample_1000_2 <- train[sample(nrow(train), 1000),]
+sample_1000_3 <- train[sample(nrow(train), 1000),]
+
+#Sample Generation for Size #2 (N = 2000)
+sample_2000_1 <- train[sample(nrow(train), 2000),]
+sample_2000_2 <- train[sample(nrow(train), 2000),]
+sample_2000_3 <- train[sample(nrow(train), 2000),]
+
+#Sample Generation for Size #3 (N = 4000)
+sample_4000_1 <- train[sample(nrow(train), 4000),]
+sample_4000_2 <- train[sample(nrow(train), 4000),]
+sample_4000_3 <- train[sample(nrow(train), 4000),]
+```
+
+```{r define_variables, include=FALSE}
+sample.list <- list(sample_1000_1, sample_1000_2, sample_1000_3, sample_2000_1, sample_2000_2, sample_2000_3, sample_4000_1, sample_4000_2, sample_4000_3)
+names(sample.list) <- sample.list.names
+
+model.list.multinomial.names <- gsub("(.{3})(.*)", "\\1_multinomial\\2", model.list)
+model.list.lasso.names <- gsub("(.{3})(.*)", "\\1_lasso\\2", model.list)
+model.list.knn.names <- gsub("(.{3})(.*)", "\\1_knn\\2", model.list)
+model.list.xgboost.names <- gsub("(.{3})(.*)", "\\1_xgboost\\2", model.list)
+model.list.nnet.names <- gsub("(.{3})(.*)", "\\1_nnet\\2", model.list)
+model.list.dtree.names <- gsub("(.{3})(.*)", "\\1_dtree\\2", model.list)
+model.list.rf.names <- gsub("(.{3})(.*)", "\\1_rf\\2", model.list)
+model.list.svm.poly.names <- gsub("(.{3})(.*)", "\\1_svm_poly\\2", model.list)
+model.list.svm.radial.names <- gsub("(.{3})(.*)", "\\1_svm_radial\\2", model.list)
+model.list.gbm.names <- gsub("(.{3})(.*)", "\\1_gbm\\2", model.list)
+```
+
+# Data Science Consulting {.tabset}
+
+## Introduction
+
+This project is going to focus on an application requiring image recognition for a social media client. To that end, a variety of machine learning models will be constructed with the goal of generating predictive classifications on several fashion items in an open source dataset. The purpose is to identify the best machine learning model for classifying the labels of the testing dataset, based upon the data of the training set. In particular, the size of the sample, the running time and the accuracy, will be taken into consideration when deciding the best model. 
+ 
+The modeling techniques that are going to be utilized are: Multinomial Logistic Regression, K-Nearest Neighbors, Classification Tree, Random Forest, Ridge/ Lasso or Elastic Net Regression, Support Vector Machines, Generalized Boosted Regression Models, Generalized Boosted Regression Models and Neural Networks.
+
+## Models {.tabset}
+
+### Model1: Multinomial Logistic
+
+We applied Multinomial logistics regression to train this image data, which is an extension of logistic regression. Multinomial allows more than two groups of binary variables to participate in the learning and applies to both binary and continuous independent variables. We chose Multinomial logistics regression because it is very convenient to use. The calculation time of multiple algorithms is relatively faster than all other models. It is very suitable for giving all members a simple concept of the outcome at the beginning of the project. If the complexity of the data set is low, the reliability of Multinomial logistics regression is high.
+
+Advantages:
+
+1. Efficient and easy to implement.
+2. Need careful design. Prior knowledge of data is required to select the best index.
+3. It is very fast at classifying unknown records.
+
+Disadvantages:
+
+1. The assumption of linearity between the dependent variable and the independent variables is a limitation.
+2. If the number of observations is small and the data's dimensionality is high, then the model is very likely to overfit.
+
+```{r code_model1_development, include=FALSE}
+# Modeling Function
+model1 <- function(dat){
+  mod <- multinom(label~. , data = dat)
+  return(mod)
+}
+```
+
+```{r load_model1, echo=FALSE}
+# Run through the 9 iterations of the Multinomial Logistic model
+model.list.multinomial<- model.iteration(mod = model1, model.names = model.list.multinomial.names)
+
+# Create preliminary scoreboards for Multinomial Logistic
+scoreboard.multinomial <- scoreboard(mod = model.list.multinomial$model.list, 
+                               running.time = model.list.multinomial$running.time, 
+                               misclassification.rate = model.list.multinomial$misclassification.rate)
+```
+
+```{r model1_scoreboard, echo=FALSE}
+print(scoreboard.multinomial)
+```
+
+### Model 2: KNN
+
+The k-nearest neighbors (KNN) algorithm is a simple supervised machine learning algorithm that we chose to solve this classification problem. KNN assumes that similar things exist in close proximity. In other words, similar things are near to each other. So, for any unknown data, KNN will find the closest k known data points, and use the majority of their class to determine the class of the unknown data point.
+
+We applied cross validation using the train function in the Caret package to find the best value for k. Smaller k tends to have lower variance but very high bias, but if a very large k will also increase the variance for the model. So with 10-fold cross validation, we found the best k=7 for the KNN model. 
+  
+
+Advantages:
+
+1. Very simple implementation.
+2. Classes don't have to be linearly separable.
+3. Few parameters to tune and save running time for cross validation.
+
+
+Disadvantages:
+
+1. Does not work well with large dataset.
+2. Need feature scaling: We need to do feature scaling (standardization and normalization) before applying KNN algorithm to any dataset. If we don't do so, KNN may generate wrong predictions.
+3. Sensitive to noises.
+
+
+```{r code_model2_development, include=FALSE}
+# CV
+# set.seed(1031)
+# split = createDataPartition(y = train$label, p = 0.1, list = F)
+# knn.train = train[split,]
+
+# ctrl <- trainControl(method="repeatedcv",number = 10,repeats = 3)  
+# knn_best <- train(label ~ ., data = knn.train, method = "knn", trControl = ctrl)
+
+# After CV: k=7
+
+# Modeling Function
+model2 <- function(dat){
+  mod = knn(train = dat[,-1], test= test[,-1], dat$label,  
+            k = 7)
+  return(mod)
+}
+```
+
+```{r load_model2, echo=FALSE}
+# Run through the 9 iterations of the KNN model
+model.list.knn <- model.iteration.knn(mod = model2, model.names = model.list.knn.names)
+
+# Create preliminary scoreboards for KNN
+scoreboard.knn <- scoreboard(mod = model.list.knn$model.list, 
+                             running.time = model.list.knn$running.time, 
+                             misclassification.rate = model.list.knn$misclassification.rate)
+```
+
+```{r model2_scoreboard, echo=FALSE}
+print(scoreboard.knn)
+```
+
+### Model 3: Classification Tree
+
+A classification tree uses decision trees to go from observations about an image to conclusions about the image's label. The algorithm systematically assigns each record to one of two subsets in the training set where the classification label is known on the some basis. The partitioning is then applied to each of the new partitions and the process continues until no more useful splits can be found. 
+
+We use the train function in the Caret package to find the best value for cp. The complexity parameter (cp) is used to control the size of the decision tree and to select the optimal tree size. In this case, the optimal value for cp is 1e-04.
+
+Advantages:
+
+1. Inexpensive to construct
+2. Extremely fast at classifying unknown records
+3. Easy to interpret
+4. Excludes unimportant features
+
+Disadvantages: 
+
+1. Easy to overfit
+2. Prone to sampling errors
+
+```{r code_model3_development, include=FALSE}
+# trctrl <- trainControl(method = "repeatedcv", 
+#                        number = 10, # 10-fold CV
+#                        repeats = 3) # repeated three times
+# set.seed(4321)
+# dtree_gridsearch <- train(label ~., data = train, method = "rpart",
+#                           trControl = trctrl,
+#                           tuneLength = 10,
+#                           tuneGrid = expand.grid(cp = c(0.1, 0.01, 1e-3, 1e-4, 1e-5))) # search for the optimal complexity parameter
+# dtree_gridsearch$bestTune = 1e-04
+
+# Modeling Function
+model3 <- function(dat = dat){
+  mod <- rpart(label ~., data = dat, method = "class", 
+               control = rpart.control(cp = 1e-04))
+  return(mod)
+}
+```
+
+```{r load_model3, echo=FALSE}
+# Run through the 9 iterations of the Classification Tree model
+model.list.dtree <- model.iteration(mod = model3, model.names = model.list.dtree.names)
+
+# Create preliminary scoreboards for Classification Tree
+scoreboard.dtree <- scoreboard(mod = model.list.dtree$model.list, 
+                               running.time = model.list.dtree$running.time, 
+                               misclassification.rate = model.list.dtree$misclassification.rate)
+```
+
+```{r model3_scoreboard, echo=FALSE}
+print(scoreboard.dtree)
+```
+
+### Model 4: Random Forest
+
+The random forest is an ensemble learning method that operates by constructing a multitude of decision trees at training time and outputting the class that is the mode of the classes of the individual trees for classification. The fundamental idea is to reduce variance by combining many decision trees into a single model. 
+
+We use the train function in the Caret package to find the best value for mtry. The mtry parameter represents the number of variables randomly sampled as candidates at each split. In this case, the optimal value for mtry is 7. We also manually tune the ntree parameter, which is the number of trees to grow. The optimal value for ntree is 500.
+
+Advantages:
+
+1. Reduces overfitting
+2. No feature scaling required
+3. Ability to handle missing values
+
+Disadvantages:
+
+1. Computationally expensive
+2. Hard to interpret
+
+```{r code_model4_development, include=FALSE}
+# mtry
+# set.seed(4321)
+# split <- createDataPartition(y = train$label, p = 0.2, list = F)
+# rf.train <- train[split,]
+# rfctrl <- trainControl(method = "cv", 
+#                        number = 5, # 5-fold CV
+#                        search = "grid") 
+# rf_gridsearch <- train(label ~., data = rf.train, method = "rf", metric = "Accuracy", 
+#                        tuneGrid = expand.grid(mtry = c(1:12)), 
+#                        trControl = rfctrl)
+# print(rf_gridsearch) # The most accuracy value for mtry is 7 with an accuracy of 81.77%
+# plot(rf_gridsearch)
+# rf_gridsearch$bestTune = 7
+
+# ntree
+# model.list <- list()
+# for (ntree in c(250, 500, 750, 1000)) {
+#	 set.seed(4321)
+#	 fit <- train(label ~., data = rf.train, method = "rf", metric = "Accuracy", ntree = ntree,
+#	              tuneGrid = expand.grid(mtry = rf_gridsearch$bestTune), trControl = rfctrl)
+#	 key <- toString(ntree)
+#	 model.list[[key]] <- fit}
+
+# results <- resamples(model.list) # Compare results
+# summary(results) # The most accuracy value for ntree is 500 with a mean accuracy of 83.54%
+
+# Modeling Function
+model4 <- function(dat = dat){
+  mod = randomForest(label ~., data = dat, method = "class", 
+                     mtry = 7, ntree = 500)
+  return(mod)
+}
+```
+
+```{r load_model4, echo=FALSE}
+# Run through the 9 iterations of the Random Forest model
+model.list.rf <- model.iteration(mod = model4, model.names = model.list.rf.names)
+
+# Create preliminary scoreboards for Random Forest
+scoreboard.rf <- scoreboard(mod = model.list.rf$model.list, 
+                            running.time = model.list.rf$running.time, 
+                            misclassification.rate = model.list.rf$misclassification.rate)
+```
+
+```{r model4_scoreboard, echo=FALSE}
+print(scoreboard.rf)
+```
+
+### Model 5: Lasso Regression
+
+The word LASSO stands for Least absolute shrinkage and selection operator. It compresses regression coefficients by constructing a penalty function, forcing the sum of absolute values of the coefficients to be less than a fixed value while setting some regression coefficients to zero. Therefore, it is a biased estimate for processing data with multicollinearity. We choose lasso because it is very suitable for processing our high-dimensional image data, and the penalty function helps us reduce the importance of some undetectable features. Use cross-validation to find the best norm-Lambda is tailor-made for the lasso, so we did it and got a higher accuracy model.
+
+Advantages:
+
+1. Effectively reduce the impact of collinearity.
+2. It is better than automatic variable selection such as forward, backward, and stepwise.
+3. It is fast in terms of inference and fitting.
+4. It selects features in the model.
+
+Disadvantages:
+
+1. Taking extra time on cv for each subset of data.
+2. Sometimes It can produce models that make no sense because:
+
+It is automatic
+Ignores 'nonsignificant' variables that could be count as a feature
+No hierarchy principle is generating in the model
+
+```{r code_model5_development, include=FALSE}
+# datY = sample_1000_1$label
+# datX = as.matrix(sample_1000_1[,2:50])
+# test.X = as.matrix(test[,2:50])
+# set.seed(1986)
+# lam.lasso <- cv.glmnet(datX, datY, family = "multinomial", alpha = 1, type.measure = "class")$lambda.min
+
+# Modeling Function
+model5 <- function(dat = dat){
+  dat.Y <- dat$label
+  dat.X <- as.matrix(dat[,2:50])
+  mod = glmnet(y = dat.Y, x = dat.X, family = "multinomial", type.measure = "class", alpha = 1)
+  return(mod)
+}
+```
+
+```{r load_model5, echo=FALSE}
+# Run through the 9 iterations of the Lasso Regression model
+model.list.lasso <- model.iteration.lasso(mod = model5, model.names = model.list.lasso.names)
+
+# Create preliminary scoreboards for Lasso Regression
+scoreboard.lasso <- scoreboard(mod = model.list.lasso$model.list,
+                               running.time = model.list.lasso$running.time,
+                               misclassification.rate = model.list.lasso$misclassification.rate)
+```
+
+```{r model5_scoreboard, echo=FALSE}
+print(scoreboard.lasso)
+```
+
+### Model 6: Support Vector Machines - Polynomial
+
+A support vector machine is a supervised learning model with associated learning algorithms that analyze data used for classification and regression analysis. Given a set of training examples, each marked as belonging to one or the other of two categories, an SVM training algorithm builds a model that assigns new examples to one category or the other as a non-probabilistic binary linear classifier (Wikipedia.com).
+
+We use the train function in the Caret package to find the best value for cost. The cost parameter trades off correct classification of training examples against maximization of the decision function's margin. In this case, the optimal value for cost is 0.25.
+
+Advantages of classification using support vector machines:
+
+1. Works relatively well when there exists a clear margin of separation between classes
+2. More effective in high dimensional spaces
+3. Effective in cases where the number of dimensions is greater than the number of samples
+4. Relatively memory efficient
+
+Disadvantages of classification using support vector machines:
+
+1. Algorithm is not suitable for overly large datasets
+2. Does not perform very well when the data set has more noise (i.e. target classes are overlapping)
+3. In cases where number of features for each data point exceeds the number of training data samples, the support vector machine will underperform
+4. As the support vector classifier works by putting data points above and below the classifying hyperplane, there is no probabilistic explanation for the classification
+
+Source: https://dhirajkumarblog.medium.com/top-4-advantages-and-disadvantages-of-support-vector-machine-or-svm-a3c06a2b107
+
+```{r code_model6_development, eval = TRUE}
+# cost
+# set.seed(4321)
+# split <- createDataPartition(y = train$label, p = 0.1, list = F)
+# svm.train <- train[split,]
+# trcontrol <- trainControl(method = "repeatedcv",
+#                           number = 5, 
+#                           repeats = 3)
+# grid_poly <- expand.grid(degree = 1,
+#                           scale = 1,
+#                           C = c(0.01, 0.1, 0.25, 0.5, 0.75, 1, 2))
+# svm_gridsearch <- train(label ~., data = svm.train, method = "svmPoly", 
+#                         trControl = trcontrol, 
+#                         preProcess = c("center", "scale"), 
+#                         tuneGrid = grid_poly,
+#                         tuneLength = 10)
+
+# Print the best tuning parameter sigma and C that maximizes model accuracy
+# svm_gridsearch$bestTune = 0.25
+
+# Modeling Function
+model6 <- function(dat = dat){
+  mod <- svm(label ~ ., data = dat, type = "C", kernel = "polynomial", 
+             probability = TRUE, cost = 0.25)
+  return(mod)
+}
+```
+
+```{r load_model6}
+# Run through the 9 iterations of the Support Vector Machine model
+model.list.svm.poly <- model.iteration(mod = model6, model.names = model.list.svm.poly.names)
+
+# Create preliminary scoreboards for the Support Vector Machine
+scoreboard.svm.poly <- scoreboard(mod = model.list.svm.poly$model.list,
+                                  running.time = model.list.svm.poly$running.time,
+                                  misclassification.rate = model.list.svm.poly$misclassification.rate)
+```
+
+```{r model6_scoreboard, echo=FALSE}
+print(scoreboard.svm.poly)
+```
+
+### Model 7: Support Vector Machines - Radial
+
+We perform the radial kernel support vector classifier using default parameters.
+
+```{r code_model7_development, eval = TRUE}
+# Modeling Function
+model7 <- function(dat = dat){
+  mod <- svm(label ~ ., data = dat, type = "C", kernel = "radial", 
+             probability = TRUE)
+  return(mod)
+}
+```
+
+```{r load_model7}
+# Run through the 9 iterations of the Support Vector Machine model
+model.list.svm.radial <- model.iteration(mod = model7, model.names = model.list.svm.radial.names)
+
+# Create preliminary scoreboards for the Support Vector Machine
+scoreboard.svm.radial <- scoreboard(mod = model.list.svm.radial$model.list,
+                                    running.time = model.list.svm.radial$running.time, 
+                                    misclassification.rate = model.list.svm.radial$misclassification.rate)
+```
+
+```{r model7_scoreboard, echo=FALSE}
+print(scoreboard.svm.radial)
+```
+
+### Model 8: GBM
+
+The Generalized Boosted Regression Model package in R provides the extended
+implementation of Adaboost and Friedman's gradient boosting machine algorithms. Gradient boosting is an ensemble algorithm where the model stars from a simple tree and then new models build on the previous model by correcting the error. We decided to not tune the parameters in gbm because it took much longer than expacted. Instead, we manually tuned several parameters, and decided to have shrinkage = 0.1, interaction.depth = 1, n.trees = 100 to make sure that the model is runnable for larger data sizes.
+
+Advantages:
+
+1. No need to do extra cross validation as the gbm contains cross validation function already.
+2. Often provides predictive accuracy that cannot be beat.
+3. Lots of flexibility - can optimize on different loss functions and provides several hyperparameter tuning options that make the function fit very flexible.
+4. No data pre-processing required, can have missing data.
+
+Disadvantages:
+
+1. Might have overfitting issue.
+2. Computationally expensive - GBMs often require many trees (>1000) which can be time and memory exhaustive
+3. The high flexibility results in many parameters that interact and influence heavily the behavior of the approach. This requires a large grid search during tuning.
+
+```{r code_model8_development, eval = TRUE}
+# Modeling Function
+model8 <- function(dat = dat){
+  mod = gbm(label ~.,
+            data = dat,
+            distribution = "multinomial",
+            cv.folds = 5,
+            shrinkage = 0.1,
+            interaction.depth = 1,
+            n.trees = 100, n.cores = 1, verbose = FALSE)
+}
+```
+
+
+```{r load_model8, include=FALSE}
+# Run through the 9 iterations of the Generalized Boosted Regression model
+model.list.gbm <- model.iteration.gbm(mod = model8, model.names = model.list.gbm.names)
+
+# Create preliminary scoreboards for the GBM
+scoreboard.gbm <- scoreboard(mod = model.list.gbm$model.list,
+                             running.time = model.list.gbm$running.time,
+                             misclassification.rate = model.list.gbm$misclassification.rate)
+```
+
+```{r model8 scoreboard, echo=FALSE}
+print(scoreboard.gbm)
+```
+
+### Model 9: XGBoost
+
+XGBoost is an implementation of gradient boosting machine and contains multiple boosting algorithm such as gradient boosting, multiple additive regression trees, stochastic gradient boosting or gradient boosting machines.Gradient boosting is an ensemble algorithm where the model stars from a simple tree and then new models build on the previous model by correcting the error. New models are created to predict the errors of prior models and then added together to make the final prediction. New models will be added until no further improvements can be made. 
+
+We applied cross validation before running the XGBoost model. With a 3-fold cross validation using the Caret package, we tuned the parameters and found the best ones for our model. The max.depth is 3, nrounds is 150, and eta is 0.4.
+
+Advantages:
+
+1. Great performance with low error rate
+2. XGBoost has in-built regularization which prevents the model from overfitting
+3. XGBoost has an in-built capability to handle missing values.
+4. It also works well on small data
+
+Disadvantages:
+
+1. Black-box nature and hard to interperate
+2. Only works with numbers and need to do more data transformation before modelling.
+
+
+```{r code_model9_development, message=FALSE, warning=FALSE, include=FALSE}
+# load("myWorkSpace.RData")
+# CV
+
+# xgboost_best = train(label~., data = sample_4000_3, method = "xgbTree",trControl = trainControl("cv", number = 3))
+# params = xgboost_best$bestTune
+
+# After CV: max.depth = 3, nrounds = 150, eta = 0.4 
+
+# Modeling Function
+model9 <- function(dat){
+  train_variables = as.matrix(dat[,-1])
+  levels(dat$label) = c(0,1,2,3,4,5,6,7,8,9)
+  train_label = as.matrix(dat[,"label"])
+  train_matrix = xgb.DMatrix(data = train_variables, label = train_label)
+  mod = xgboost(data = train_matrix,  
+                max.depth = 3, 
+                eta = 0.4,
+                nrounds = 150,
+                nthread = 2, 
+                objective = "multi:softprob",
+                num_class = 10)
+  return(mod)
+}
+```
+
+```{r load_model9, include=FALSE}
+# Run through the 9 iterations of the XGBoost model
+model.list.xgboost <- model.iteration.xgboost(mod = model9, model.names = model.list.xgboost.names)
+
+# Create preliminary scoreboards for XGBoost
+scoreboard.xgboost <- scoreboard(mod = model.list.xgboost$model.list,
+                                 running.time = model.list.xgboost$running.time,
+                                 misclassification.rate = model.list.xgboost$misclassification.rate)
+```
+
+```{r model9_scoreboard, echo=FALSE}
+print(scoreboard.xgboost)
+```
+
+### Model 10: Neural Networks nnet
+
+Nnet is a package that can call neural networks with a single hidden layer. A neural network classifier is a system that predicts the value of a categorical value. To tune the parameters, we used Stochastic gradient descent for Hyper-Parameters to train
+the model from scratch each time. This is computationally expensive and only practical for small datasets. We applied Caret package to do cross validations with grid search method. Accuracy was used to select the optimal model using the largest value. The final values used for the model were size = 10 and decay = 0.5.
+
+Advantages:
+
+1. Work well for large datasets.
+2. Able to detect complex nonlinear relationships between dependent and independent variables
+3. Specify regularization terms (L1 and L2) to prevent overfitting
+
+
+Disadvantages:
+
+1. Does not work well and may overfit for small dataset.
+2. Hard to find the correct paramaters without domain knowledge. CV is very time consuming.
+3. Hard to interperate.
+
+```{r code_model10_development, message=FALSE, warning=FALSE, include=FALSE}
+# CV 
+# set.seed(1031)
+# split = createDataPartition(y = train$label, p = 0.1, list = F)
+# nnet.train = train[split,]
+
+# fitControl <- trainControl(method = "cv", 
+#                            number = 5, 
+#                            classProbs = TRUE)
+# nnetGrid <-  expand.grid(size = seq(from = 1, to = 10, by = 1),
+#                         decay = seq(from = 0.1, to = 0.5, by = 0.1))
+
+# nnet.train[label == 'T-shirt/top',label := 'Tshirt.top']
+# nnet.train[label == 'Ankle boot',label := 'Ankle.boot']
+# nnet.train$label = droplevels(nnet.train$label)
+
+# nnet_best = train(label ~ ., 
+#                  data = nnet.train,
+#                  method = "nnet",
+#                  metric = "ROC",
+#                  trControl = fitControl,
+#                  tuneGrid = nnetGrid,
+#                  verbose = FALSE)
+
+# After CV: Accuracy was used to select the optimal model using the largest value. The final values used for the model were size = 10 and decay = 0.5.
+
+# Modeling Function
+model10 <- function (dat) {
+  mod = nnet(label~.,
+             data = dat,
+             size = 10,
+             decay = 0.5,
+             MaxNWts = 1000,
+             maxit = 300) 
+}
+```
+
+```{r load_model10, message=FALSE, warning=FALSE, include=FALSE}
+# Run through the 9 iterations of the Neural Networks nnet model
+model.list.nnet <- model.iteration.nnet(mod = model10, model.names = model.list.nnet.names)
+
+# Create preliminary scoreboards for Neural Networks nnet
+scoreboard.nnet <- scoreboard(mod = model.list.nnet$model.list,
+                              running.time = model.list.nnet$running.time,
+                              misclassification.rate = model.list.nnet$misclassification.rate)
+```
+
+```{r model10 scoreboard, echo=FALSE}
+print(scoreboard.nnet)
+```
+
+
+## Scoreboard
+
+```{r scoreboard}
+scoring <- rbind(scoreboard.multinomial, scoreboard.knn, scoreboard.dtree, scoreboard.rf, scoreboard.lasso, 
+                 scoreboard.svm.poly, scoreboard.svm.radial, scoreboard.gbm, scoreboard.xgboost, scoreboard.nnet)
+scoring.summary(scoring = scoring)
+```
+
+## Discussion
+
+The training and tuning of the models was conducted using the caret package, as well as manually. Generally, the running time and accuracy of the models would increase along with the sample size. Ensemble methods, such as random forest and xgboost, were good as they reduced variance, while providing higher stability.
+
+The models that had the better results were not necessarily the most robust or complicated models. When considering the running time, sample sizes, and accuracy, the overall performance of the radial kernel support vector classifier was deemed to be the best. However, this is mainly due to the small sample sizes we selected. We selected a sample size of 1000-4000 samples, which is significantly smaller when compared to the initial dataset in an attempt to make the models more efficient to run. The main drawback of this smaller sample size is that some robust models, like neural networks and lasso regression, did not generate as good results as it would be expected. 
+
+## Model Development Responsibilities
+
+For the 10 models, please list the names of the developers along with percentages for how the responsibilities were divided.
+
+Model 1 Multinomial logistic regression: Haotian
+
+Model 2 K-Nearest Neighbors: Demi
+
+Model 3 Classification Tree: Yuqi
+
+Model 4 Random Forest: Yuqi
+
+Model 5 Lasso Regression: Haotian
+
+Model 6 Support Vector Machines: Yuqi
+
+Model 7 Support Vector Machines: Yuqi
+
+Model 8 GBM: Demi
+
+Model 9 XGBoost: Chloé
+
+Model 10 NNET: Chloé
